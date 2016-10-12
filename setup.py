@@ -14,5 +14,8 @@ setup(name='xara',
           'Programming Language :: Python :: 2.7'
       ],
       packages=['xara'],
+      install_requires=[
+          'numpy', 'scipy', 'matplotlib', 'pyfits'
+      ],
       zip_safe=False)
 
