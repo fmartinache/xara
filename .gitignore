@@ -1,0 +1,14 @@
+# compiled python modules
+*.pyc
+
+# emacs temporary save files
+*~
+
+# setuptools distribution folder
+/dist/
+
+# python egg metadata, regenerated from source files by setuptools
+/*.egg-info
+
+# build folder
+/build/
