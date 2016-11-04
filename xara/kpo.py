@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 try:
     import pyfits as pf
-else:
+except:
     import astropy.io.fits as pf
 
 import copy
