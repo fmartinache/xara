@@ -1,0 +1,3 @@
+include README.rst
+include xara/*.txt
+include xara/*.fits.gz
