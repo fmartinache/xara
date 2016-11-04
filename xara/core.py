@@ -17,7 +17,6 @@ import pdb
 import sys
 from scipy.signal import medfilt2d as medfilt
 from scipy.special import j1
-import pyfits as pf
 
 ''' ================================================================
     small tools and functions useful for the manipulation of
