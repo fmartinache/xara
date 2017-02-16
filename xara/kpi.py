@@ -250,25 +250,29 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax = 8.0):
-        ''' Nice plot of the pupil sampling and matching uv plane.
+    def plot_pupil_and_uv(self, xymax = 8.0, plot_redun = False):
+        '''Nice plot of the pupil sampling and matching uv plane.
 
         --------------------------------------------------------------------
-        xymax just specifies the size of the region represented in the plot,
-        expressed in meters. Should typically be slightly larger than the 
-        largest baseline in the array.
-        --------------------------------------------------------------------'''
+        Parameters:
+        ----------
 
+        - xymax: radius of the region represented in the baseline plot (meters)
+        - plot_redun: flag to add the redundancy vector information (boolean)
+        - -------------------------------------------------------------------
+
+        '''
+
+        f0 = plt.figure(1, figsize=(14,7))
         plt.clf()
-        f0 = plt.figure(figsize=(14,7))
         ax0 = plt.subplot(121)
         ax0.plot(self.mask[:,0], self.mask[:,1], 'bo')
         ax0.axis([-xymax, xymax, -xymax, xymax], aspect='equal')
         #ax0.title(self.name+' pupil')
 
         ax1 = plt.subplot(122)
-        ax1.plot(self.uv[:,0],   self.uv[:,1], 'bo') # plot baselines + symetric
-        ax1.plot(-self.uv[:,0], -self.uv[:,1], 'ro') # for a "complete" feel
+        ax1.plot(self.uv[:,0],   self.uv[:,1], 'b.') # plot baselines + symetric
+        ax1.plot(-self.uv[:,0], -self.uv[:,1], 'r.') # for a "complete" feel
         #ax1.title(self.name+' uv coverage')
         ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax], aspect='equal')
 
@@ -276,9 +280,10 @@ class KPI(object):
         # complete previous plot with redundancy of the baseline
         # -------------------------------------------------------
         dy = 0.1*abs(self.uv[0,1]-self.uv[1,1]) # to offset text in the plot.
-        for i in range(self.nbuv):
-            ax1.text(self.uv[i,0]+dy, self.uv[i,1]+dy, 
-                     int(self.RED[i]), ha='center')
+        if plot_redun:
+            for i in range(self.nbuv):
+                ax1.text(self.uv[i,0]+dy, self.uv[i,1]+dy, 
+                         int(self.RED[i]), ha='center')
         
         ax0.axis('equal')
         ax1.axis('equal')
