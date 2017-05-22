@@ -486,3 +486,43 @@ def extract_from_array(array, hdr, kpi, wrad, save_im=True, re_center=True,
         plt.draw()
     return res
 
+# =========================================================================
+# =========================================================================
+def compute_FTM(coords, m2pix, isz, axis=0):
+    ''' ----------------------------------------------------------------------------
+    Computes a discrete Fourier Transform matrix for exact u (or v) coordinates.
+
+    parameters:
+    ----------
+    - coords : a 1D vector of baseline coordinates where the FT will be computed
+    - m2pix  : a scaling parameter, that depends on the wavelength, the plate 
+               scale and the image size
+    - isz    : the image size
+    - axis   : == 0 (default) produces a matrix that acts on the rows of the image
+               != 0 (anything) produces a matrix that acts on its columns
+
+    -----------------------------------
+
+    Example of use, for an image of size isz:
+    
+    >> LL = xara.core.compute_FTM(np.unique(kpi.uv[:,1]), m2pix, isz, 0)
+    >> RR = xara.core.compute_FTM(np.unique(kpi.uv[:,0]), m2pix, isz, 1)
+
+    >> FT = LL.dot(img).dot(RR)
+
+    This last command returns the properly sampled FT of the img.
+
+
+    ---------------------------------------------------------------------------- '''
+    
+    i2pi = 1j * 2 * np.pi
+    bl_c = coords * m2pix
+    w_v  = np.exp(-i2pi/isz * bl_c) # vector of roots of the FT matrix
+    ftm  = np.zeros((w_v.size, isz), dtype='complex')
+    
+    for i in range(isz):
+        ftm[:,i] = w_v**(i - isz/2) / np.sqrt(isz)
+    if axis != 0:
+        return(ftm.T)
+    else:
+        return(ftm)

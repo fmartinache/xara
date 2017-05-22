@@ -73,6 +73,46 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
+    def extract_UVP(self, image, m2pix): #, re_center=True, wfs=False, wrad=25):
+        ''' -------------------------------------------------------------------
+        extract the Fourier-phase from an image (a 2D array, not a file), and
+        a m2pix scaling constant.
+        
+        relying on an exact DFT, computed only for the coordinates of the model.
+        For now, assumes that the data is centered. Subtleties shall be added
+        later.
+
+        EXPERIMENTAL: work in progress !!!!
+        ------------------------------------------------------------------- '''
+        (XSZ, YSZ) = image.shape
+
+        try:
+            test = self.LL # to avoid recomputing a lot of re-usable arrays!
+            
+        except: # do the auxilliary computations
+            self.bl_v = np.unique(self.kpi.uv[:,1])
+            self.bl_u = np.unique(self.kpi.uv[:,0])
+
+            self.vstep = self.bl_v[1] - self.bl_v[0]
+            self.ustep = self.bl_u[1] - self.bl_u[0]
+
+            self.LL   = core.compute_FTM(self.bl_v, m2pix, YSZ, 0)
+            self.RR   = core.compute_FTM(self.bl_u, m2pix, XSZ, 1)
+
+            self.uv_i = np.round(self.kpi.uv[:,0] / self.ustep, 1)
+            self.uv_i -= self.uv_i.min()
+            self.uv_i = self.uv_i.astype('int')
+            self.uv_j = np.round(self.kpi.uv[:,1] / self.vstep, 1)
+            self.uv_j -= self.uv_j.min()
+            self.uv_j = self.uv_j.astype('int')
+
+            
+        myft = self.LL.dot(image).dot(self.RR) # this is the DFT
+        myft_v = myft[self.uv_j, self.uv_i]
+        return(myft_v)
+    
+    # =========================================================================
+    # =========================================================================
     def extract_KPD(self, path, plotim=False, ave="none",
                     re_center=True, wfs=False, wrad=25):
         ''' extract kernel-phase data from one or more files (use regexp).
