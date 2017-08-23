@@ -113,7 +113,7 @@ class KPI(object):
         self.mask = 1.0 * np.loadtxt(file) # sub-Ap. coordinate files 
         self.nbh  = self.mask.shape[0]   # number of sub-Ap
 
-        ndgt = 4 # number of digits of precision for rounding
+        ndgt = 5 # number of digits of precision for rounding
         prec = 10**(-ndgt)
 
         # ================================================
@@ -191,11 +191,11 @@ class KPI(object):
             print "%d baselines were kept (saturated data)" % (self.nbuv,)
 
 
-        # 2. Calculate the transfer matrix and the redundancy vector
+        # 2. transfer matrix + redundancy and transmission vectors
         # --------------------------------------------------------------
         self.TFM = np.zeros((self.nbuv, self.nbh), dtype=float) # matrix
         self.RED = np.zeros(self.nbuv, dtype=float)             # Redundancy
-
+        self.TRM = np.ones(self.nbh,   dtype=float)             # Transmission
 
         for i in range(self.nbuv):
             a=np.where((np.abs(self.uv[i,0]-uvx) <= prec) *
@@ -204,6 +204,9 @@ class KPI(object):
             self.TFM[i, uvj[a]] += -1.0
             self.RED[i]         = np.size(a)
 
+        if self.mask.shape[1] == 3:
+            self.TRM = self.mask[:,2]
+            
         # 3. Determine the kernel-phase relations
         # ----------------------------------------
 
@@ -215,8 +218,9 @@ class KPI(object):
         # discard the first column, that is, use the first aperture
         # as a reference?
 
-        self.TFM = self.TFM[:,1:] # cf. explanation
-        self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # experiment
+        self.TFM = self.TFM.dot(np.diag(self.TRM))        # transmission
+        self.TFM = self.TFM[:,1:]                         # cf. explanation
+        self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
         U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
 
         S1 = np.zeros(self.nbuv)

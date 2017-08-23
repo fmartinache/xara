@@ -87,18 +87,17 @@ def cvis_binary(u, v, wavel, p, norm=None):
     l1 = 1 - l2
     
     # phase-factor
-    phi = np.zeros(u.size, dtype=complex)
-    phi.real = np.cos(-2*np.pi*(u*dra + v*ddec)/wavel)
-    phi.imag = np.sin(-2*np.pi*(u*dra + v*ddec)/wavel)
-
+    phi = np.cos(-2*np.pi*(u*dra + v*ddec)/wavel) + \
+          1j * np.sin(-2*np.pi*(u*dra + v*ddec)/wavel)
+    
     # optional effect of resolved individual sources
     if p.size == 5:
         th1, th2 = mas2rad(p[3]), mas2rad(p[4])
         v1 = 2*j1(np.pi*th1*x)/(np.pi*th1*x)
         v2 = 2*j1(np.pi*th2*x)/(np.pi*th2*x)
     else:
-        v1 = np.ones(u.size)
-        v2 = np.ones(u.size)
+        v1 = np.ones(u.size, dtype=u.dtype)
+        v2 = np.ones(u.size, dtype=u.dtype)
 
     cvis = l1 * v1 + l2 * v2 * phi
 
@@ -516,9 +515,10 @@ def compute_FTM(coords, m2pix, isz, axis=0):
     ---------------------------------------------------------------------------- '''
     
     i2pi = 1j * 2 * np.pi
+    i2pi = np.complex256(1j*6.283185307179586476925286766558)
     bl_c = coords * m2pix
     w_v  = np.exp(-i2pi/isz * bl_c) # vector of roots of the FT matrix
-    ftm  = np.zeros((w_v.size, isz), dtype='complex')
+    ftm  = np.zeros((w_v.size, isz), dtype=w_v.dtype)
     
     for i in range(isz):
         ftm[:,i] = w_v**(i - isz/2) / np.sqrt(isz)
