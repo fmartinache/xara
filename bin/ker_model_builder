@@ -7,13 +7,19 @@ import sys
 import numpy as np
 
 from xaosim import pupil
+import xara
 
 sz = 2000
 
 class MyWindow(QtGui.QMainWindow):
     def __init__(self):
         super(MyWindow, self).__init__()
-        uic.loadUi('cfg/discretizor.ui', self)
+        try:
+            uic.loadUi('config/discretizor.ui', self)
+        except:
+            uifile = xara.__path__[0]+'/../config/discretizor.ui'
+            uic.loadUi(uifile, self)
+            
         self.pw = self.graphicsView
         self.imv = pg.ImageItem()
         self.pw.addItem(self.imv)

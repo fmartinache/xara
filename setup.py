@@ -18,7 +18,7 @@ setup(name='xara',
           'numpy', 'scipy', 'matplotlib'
       ],
       scripts=["bin/ker_model_builder"],
-      data_files = [('config', ['cfg/discretizor.ui'])],
+      data_files = [('config', ['config/discretizor.ui'])],
       include_package_data=True,
       zip_safe=False)
 
