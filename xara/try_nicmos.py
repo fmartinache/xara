@@ -23,7 +23,7 @@ plt.show()
     Frantz.
     ----------------------------------------------------------------- '''
 
-ddir = os.path.dirname(__file__)
+ddir = os.path.abspath(os.path.dirname("__file__"))
 # -------------------------------
 # 1. create the KP info structure
 # -------------------------------
