@@ -29,13 +29,14 @@ fft   = np.fft.fft2
 ifft  = np.fft.ifft2
 
 dtor = np.pi/180.0
+i2pi = 1j*2.0*np.pi
 
 # =========================================================================
 # =========================================================================
 
 def mas2rad(x):
     ''' Convenient little function to convert milliarcsec to radians '''
-    return x*np.pi/648000000.0 # = x*np.pi/(180*3600*1000)
+    return(x * 4.8481368110953599e-09) # = x*np.pi/(180*3600*1000)
 
 # =========================================================================
 # =========================================================================
@@ -75,21 +76,20 @@ def cvis_binary(u, v, wavel, p, norm=None):
 
     p = np.array(p)
     # relative locations
-    th = (p[1] + 90.0) * np.pi / 180.0
+    th = (p[1] + 90.0) * dtor
     ddec =  mas2rad(p[0] * np.sin(th))
     dra  = -mas2rad(p[0] * np.cos(th))
 
     # baselines into number of wavelength
-    x = np.sqrt(u*u+v*v)/wavel
+    x = np.hypot(u,v)/wavel
 
     # decompose into two "luminosity"
     l2 = 1. / (p[2] + 1)
     l1 = 1 - l2
-    
+
     # phase-factor
-    phi = np.cos(-2*np.pi*(u*dra + v*ddec)/wavel) + \
-          1j * np.sin(-2*np.pi*(u*dra + v*ddec)/wavel)
-    
+    phi = np.exp(-i2pi*(u*dra + v*ddec)/wavel)
+
     # optional effect of resolved individual sources
     if p.size == 5:
         th1, th2 = mas2rad(p[3]), mas2rad(p[4])
@@ -128,25 +128,20 @@ def cvis_binary2(u, v, wavel, p, norm=None):
 
     p = np.array(p)
     # relative locations
-    th = (p[1] + 90.0) * np.pi / 180.0
+    th = (p[1] + 90.0) * dtor
     ddec =  mas2rad(p[0] * np.sin(th))
     dra  = -mas2rad(p[0] * np.cos(th))
 
     # baselines into number of wavelength
-    x = np.sqrt(u*u+v*v)/wavel
+    x = np.hypot(u,v)/wavel
 
     # decompose into two "luminosity"
-    l2 = 1. / (p[2] + 1)
-    l1 = 1 - l2
+    l2 = 1. / (p[2] + 1.)
+    l1 = 1. - l2
     
     # phase-factor
-    phi1 = np.zeros(u.size, dtype=complex)
-    phi1.real = np.cos(-2*np.pi*l1*(u*dra + v*ddec)/wavel)
-    phi1.imag = np.sin(-2*np.pi*l1*(u*dra + v*ddec)/wavel)
-
-    phi2 = np.zeros(u.size, dtype=complex)
-    phi2.real = np.cos(2*np.pi*l2*(u*dra + v*ddec)/wavel)
-    phi2.imag = np.sin(2*np.pi*l2*(u*dra + v*ddec)/wavel)
+    phi1 = np.exp(-1j*2*np.pi*l1*(u*dra + v*ddec)/wavel)
+    phi2 = np.exp(-1j*2*np.pi*l2*(u*dra + v*ddec)/wavel)
 
     # optional effect of resolved individual sources
     if p.size == 5:
@@ -517,7 +512,7 @@ def compute_FTM(coords, m2pix, isz, axis=0):
     i2pi = 1j * 2 * np.pi
     i2pi = np.complex256(1j*6.283185307179586476925286766558)
     bl_c = coords * m2pix
-    w_v  = np.exp(-i2pi/isz * bl_c) # vector of roots of the FT matrix
+    w_v  = np.exp(-i2pi/isz * bl_c, dtype=np.complex256) # vector of roots of the FT matrix
     ftm  = np.zeros((w_v.size, isz), dtype=w_v.dtype)
     
     for i in range(isz):

@@ -350,3 +350,44 @@ class KPO():
 
         plt.imshow(z1)
         return (z1, z2)
+
+    # =========================================================================
+    # =========================================================================
+    def plot_uv_map(self, data=None, sym=True, reso=400):
+        ''' Interpolates a uv-information vector to turn it into a 2D map.
+
+        Parameters:
+        ----------
+
+        - data: the 1D vector of size self.kpi.nbuv
+        - sym: symmetric or anti-symmetric map?
+        - reso: the resolution of the plot (how many pixels across)
+        ------------------------------------------------------------------ '''
+
+        uv = self.kpi.uv
+        
+        Kinv = np.linalg.pinv(self.kpi.KerPhi)
+
+        dxy = np.max(np.abs(uv))
+        xi = np.linspace(-dxy, dxy, reso)
+        yi = np.linspace(-dxy, dxy, reso)
+
+        if data is None:
+            data = np.dot(Kinv, self.kpd)
+
+        if sym is True:
+            data2 = data.copy()
+        else:
+            data2 = -data
+            
+        z1 = griddata((np.array([uv[:,0], -uv[:,0]]).flatten(),
+                       np.array([uv[:,1], -uv[:,1]]).flatten()),
+                      np.array([data, data2]).flatten(),
+                      (xi[None,:], yi[:,None]), method='linear')
+        f1 = plt.figure(figsize=(8,8))
+        ax1 = f1.add_subplot(111)
+        ax1.imshow(z1)
+        ax1.set_xticks([])
+        ax1.set_yticks([])
+        f1.tight_layout()
+        return (z1)
