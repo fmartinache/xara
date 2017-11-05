@@ -353,7 +353,7 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
-    def plot_uv_map(self, data=None, sym=True, reso=400):
+    def plot_uv_map(self, data=None, sym=True, reso=400, fsize=8):
         ''' Interpolates a uv-information vector to turn it into a 2D map.
 
         Parameters:
@@ -362,6 +362,7 @@ class KPO():
         - data: the 1D vector of size self.kpi.nbuv
         - sym: symmetric or anti-symmetric map?
         - reso: the resolution of the plot (how many pixels across)
+        - fsize: the size of the figure (in inches)
         ------------------------------------------------------------------ '''
 
         uv = self.kpi.uv
@@ -384,7 +385,7 @@ class KPO():
                        np.array([uv[:,1], -uv[:,1]]).flatten()),
                       np.array([data, data2]).flatten(),
                       (xi[None,:], yi[:,None]), method='linear')
-        f1 = plt.figure(figsize=(8,8))
+        f1 = plt.figure(figsize=(fsize, fsize))
         ax1 = f1.add_subplot(111)
         ax1.imshow(z1)
         ax1.set_xticks([])

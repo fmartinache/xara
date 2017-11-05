@@ -138,10 +138,12 @@ def cvis_binary2(u, v, wavel, p, norm=None):
     # decompose into two "luminosity"
     l2 = 1. / (p[2] + 1.)
     l1 = 1. - l2
+
+    print("l1, l2, l1+l2 = ", l1, l2, l1+l2)
     
     # phase-factor
-    phi1 = np.exp(-1j*2*np.pi*l1*(u*dra + v*ddec)/wavel)
-    phi2 = np.exp(-1j*2*np.pi*l2*(u*dra + v*ddec)/wavel)
+    phi1 = np.exp( i2pi * l1*(u*dra + v*ddec) / wavel)
+    phi2 = np.exp(-i2pi * l2*(u*dra + v*ddec) / wavel)
 
     # optional effect of resolved individual sources
     if p.size == 5:
