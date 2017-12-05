@@ -7,6 +7,16 @@ data structures, using the theory presented by
 - Martinache (2010), ApJ, 724, 464.  
 - Martinache (2013), PASP, 125, 422.
 
+Recommandation for installation:
+-------------------------------
+
+>> python setup.py install --user
+
+
+It is also recommended to add ~/.local/bin/ to the path:
+
+>> export PATH=$HOME/.local/bin/:$PATH
+
 The module is constructed around two main classes:
 -------------------------------------------------
 
@@ -34,9 +44,10 @@ included, and should be installed manually.
 Note:
 ----
 
-Than on some systems, after installation is complete, the call for the
-"ker_model_builder" command may fail due to apparent permission
-limitations. The exact error message encountered is:
+If installing the module using super user privileges, on some systems,
+after installation is complete, the call for the "ker_model_builder"
+command may fail due to apparent permission limitations when not using
+super user privileges. The exact error message encountered is:
 
 "IOError: [Errno 13] Permission denied: '/usr/local/lib/python2.7/dist-packages/xara-0.1-py2.7.egg/EGG-INFO/requires.txt'"
 
@@ -44,3 +55,4 @@ The current fix is to set the permissions right on this requirement file:
 
 "sudo chmod a+r /usr/local/lib/python2.7/dist-packages/xara-0.1-py2.7.egg/EGG-INFO/requires.txt"
 
+The other option is to use the recommended installation mode described above!

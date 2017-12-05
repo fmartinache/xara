@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='xara',
-      version='0.1',
+      version='1.0.0', # defined in the __init__ module
       description='Package for eXtreme Angular Resolution Astronomy',
       url='http://github.com/fmartinache/xara',
       author='Frantz Martinache',
@@ -15,7 +15,7 @@ setup(name='xara',
       ],
       packages=['xara'],
       install_requires=[
-          'numpy', 'scipy', 'matplotlib'
+          'numpy', 'scipy', 'matplotlib', 'astropy'
       ],
       scripts=["bin/ker_model_builder"],
       data_files = [('config', ['config/discretizor.ui'])],

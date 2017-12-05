@@ -13,9 +13,8 @@
       object that contains the linear model for the optical system 
       of interest. 
 
-    - KPD: Kernel-Phase Data
-
-      objects that contains Ker-phase data extracted from actual
+    - KPO: Kernel-Phase Observation
+      object that contains Ker-phase data extracted from actual
       images, using the model of KerPhase_Relation + some other
       information: plate scale, wavelength, ...
       -------------------------------------------------------------------- '''
@@ -27,9 +26,9 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
 try:
-    import pyfits as pf
-except:
     import astropy.io.fits as pf
+except:
+    import pyfits as pf
     
 import copy
 import pickle
@@ -53,6 +52,9 @@ from kpi import *
 
 import kpo
 from kpo import *
+
+version_info = (1,0,0)
+__version__ = '.'.join(str(c) for c in version_info)
 
 # -------------------------------------------------
 # set some defaults to display images that will

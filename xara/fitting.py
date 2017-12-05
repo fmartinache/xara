@@ -358,7 +358,7 @@ def correlation_plot(kpo, params=[250., 0., 5.], plot_error=True, fig=None):
     - fig:        id of the display for the plot
     --------------------------------------------------------------------------
     '''
-    mm = np.round(np.max(np.abs(kpo.kpd)), -1)
+    mm = np.round(np.max(np.abs(kpo.kpd)), -1) # !!!!!!!!!!!!!!!!!!!!!!!
     
     f1 = plt.figure(fig)
     sp0 = f1.add_subplot(111)
@@ -385,8 +385,8 @@ def correlation_plot(kpo, params=[250., 0., 5.], plot_error=True, fig=None):
     plt.text(-0.75*mm, 0.5*mm, msg,
               bbox=dict(facecolor='white'), fontsize=14)
     
-    plt.xlabel('Data kernel-phase signal (deg)')
-    plt.ylabel('Kernel-phase binary model (deg)')
+    plt.ylabel('Data kernel-phase signal (deg)')
+    plt.xlabel('Kernel-phase binary model (deg)')
     plt.draw()
     return None
 

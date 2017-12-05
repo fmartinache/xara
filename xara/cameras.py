@@ -32,10 +32,10 @@ def get_keck_keywords(hdr):
         'DEC'    : hdr['DEC'     ],        # declination (deg)
         'filter' : hdr['CENWAVE' ] * 1e-6, # central wavelength (meters)
         # P.A. of the frame (deg) (formula from M. Ireland)
-        'orient' : 360+hdr['PARANG']+hdr['ROTPOSN']-hdr['EL']-hdr['INSTANGL']
+        'orient' : 360+hdr['PARANG']+hdr['ROTPPOSN']-hdr['EL']-hdr['INSTANGL']
         }
-    print "parang = %.2f, rotposn = %.2f, el=%.2f, instangl=%.2f" % \
-        (hdr['PARANG'],hdr['ROTPOSN'],hdr['EL'],hdr['INSTANGL'])
+    print "parang = %.2f, rotpposn = %.2f, el=%.2f, instangl=%.2f" % \
+        (hdr['PARANG'],hdr['ROTPPOSN'],hdr['EL'],hdr['INSTANGL'])
     return data
 
 # =========================================================================

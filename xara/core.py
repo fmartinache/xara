@@ -56,7 +56,7 @@ def negentropy(a):
 
 # =========================================================================
 # =========================================================================
-def cvis_binary(u, v, wavel, p, norm=None):
+def cvis_binary(u, v, wavel, p, detpa=None):
     ''' Calc. complex vis measured by an array for a binary star
     ----------------------------------------------------------------
     p: 3-component vector (+2 optional), the binary "parameters":
@@ -71,14 +71,18 @@ def cvis_binary(u, v, wavel, p, norm=None):
     - u,v: baseline coordinates (meters)
     - wavel: wavelength (meters)
 
-    - norm=None (required for vis2)
+    - detpa: detector position angle (degrees)
     ---------------------------------------------------------------- '''
-
+    if detpa is None:
+        th0 = 0.0
+    else:
+        th0 = detpa * dtor
+        
     p = np.array(p)
     # relative locations
     th = (p[1] + 90.0) * dtor
-    ddec =  mas2rad(p[0] * np.sin(th))
-    dra  = -mas2rad(p[0] * np.cos(th))
+    ddec =  mas2rad(p[0] * np.sin(th - th0))
+    dra  = -mas2rad(p[0] * np.cos(th - th0))
 
     # baselines into number of wavelength
     x = np.hypot(u,v)/wavel
@@ -108,7 +112,7 @@ def cvis_binary(u, v, wavel, p, norm=None):
 # 1:1 binary, for which things should be computed from the barycenter
 # note that this doesn't matter when dealing with kernel-phase
 # =========================================================================
-def cvis_binary2(u, v, wavel, p, norm=None):
+def cvis_binary2(u, v, wavel, p, detpa=None):
     ''' Calc. complex vis measured by an array for a binary star
     ----------------------------------------------------------------
     p: 3-component vector (+2 optional), the binary "parameters":
@@ -123,14 +127,18 @@ def cvis_binary2(u, v, wavel, p, norm=None):
     - u,v: baseline coordinates (meters)
     - wavel: wavelength (meters)
 
-    - norm=None (required for vis2)
+    - detpa: detector position angle (degrees)
     ---------------------------------------------------------------- '''
+    if detpa is None:
+        th0 = 0.0
+    else:
+        th0 = detpa * dtor
 
     p = np.array(p)
     # relative locations
     th = (p[1] + 90.0) * dtor
-    ddec =  mas2rad(p[0] * np.sin(th))
-    dra  = -mas2rad(p[0] * np.cos(th))
+    ddec =  mas2rad(p[0] * np.sin(th + th0))
+    dra  = -mas2rad(p[0] * np.cos(th + th0))
 
     # baselines into number of wavelength
     x = np.hypot(u,v)/wavel
@@ -246,7 +254,6 @@ def vis2_binary(u, v, wavel, p):
 
 # =========================================================================
 # =========================================================================
-
 def super_gauss(xs, ys, x0, y0, w):
     ''' Returns an 2D super-Gaussian function
     ------------------------------------------
@@ -265,7 +272,6 @@ def super_gauss(xs, ys, x0, y0, w):
 
 # =========================================================================
 # =========================================================================
-
 def centroid(image, threshold=0, binarize=0):                        
     ''' ------------------------------------------------------
         simple determination of the centroid of a 2D array
@@ -291,7 +297,6 @@ def centroid(image, threshold=0, binarize=0):
 
 # =========================================================================
 # =========================================================================
-
 def find_psf_center(img, verbose=True, nbit=10):                     
     ''' Name of function self explanatory: locate the center of a PSF.
 
@@ -342,7 +347,6 @@ def find_psf_center(img, verbose=True, nbit=10):
 
 # =========================================================================
 # =========================================================================
-
 def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
     ''' ------------------------------------------------------------
          The ultimate image centering algorithm... eventually...
@@ -357,18 +361,18 @@ def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
 
     temp = np.max(im0.shape) # max dimension of image
 
-    for sz in [64, 128, 256, 512, 1024, 2048]:
+    for sz in 64 * 2**np.arange(6):
         if sz >= temp: break
 
     dz = sz/2.           # image half-size
 
-    sgmask = super_gauss(sz, sz, dz, dz, sg_rad)
-    x,y = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
+    sgmask  = super_gauss(sz, sz, dz, dz, sg_rad)
+    x,y     = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
     wedge_x, wedge_y = x*np.pi/dz, y*np.pi/dz
-    offset = np.zeros((sz, sz), dtype=complex) # to Fourier-center array
+    offset  = np.zeros((sz, sz), dtype=complex) # to Fourier-center array
 
     # insert image in zero-padded array (dim. power of two)
-    im = np.zeros((sz, sz))
+    im  = np.zeros((sz, sz))
     orih, oriv = (sz-szh)/2, (sz-szv)/2
     im[oriv:oriv+szv,orih:orih+szh] = im0
 
@@ -381,10 +385,11 @@ def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
 
     sys.stdout.write("\rrecenter: dx=%.2f, dy=%.2f" % (dx, dy))
     sys.stdout.flush()
+    
     dx -= np.int(dx)
     dy -= np.int(dy)
 
-    temp = im * sgmask
+    temp   = im * sgmask
     mynorm = temp.sum()
 
     # array for Fourier-translation
@@ -398,123 +403,40 @@ def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
 
     return (dummy * mynorm / dummy.sum())
 
-
 # =========================================================================
 # =========================================================================
-def extract_from_array(array, hdr, kpi, wrad, save_im=True, re_center=True,
-                       plotim=False, plotuv=False):
-    ''' Extract the Kernel-phase signal from a ndarray + header info.
-    
-    ----------------------------------------------------------------
-    Assumes that the array has been cleaned.
-    In order to be able to extract information at the right place,
-    a header must be provided as additional argument.
-    
-    In addition to the actual Kernel-phase signal, some information
-    is extracted from the fits header to help with the interpretation
-    of the data to follow.
-    
-    Parameters are:
-    - array: the frame to be examined
-    - kpi:   the k-phase info structure to decode the data
-    - wrad:  window radius in pixels (e.g. = 25)
-    - save_im: optional flag to set to False to forget the images
-    and save some RAM space
+def compute_DFTM2(coords, m2pix, isz, axis=0):
+    ''' -----------------------------------------------------------------------
+    Two-sided DFT matrix to be used with the "LDFT2" extraction method,
+    DFT matrix computed for exact u (or v) coordinates.
 
-    Options:
-    -re_center: re-centers the frame before extraction
-    - plotim:   plots image
-    - plotuv:   plots uv phase map
-
-    The function returns a tuple:
-    - information, kernal-phase, uv-phase,  square visibiities
-    - (kpd_info,   kpd_signal,   kpd_phase, vis2)
-    - (kpd_info,   kpd_signal,   kpd_phase, vis2, im, ac)
-    ---------------------------------------------------------------- '''
-
-    if 'Keck II' in hdr['TELESCOP']: kpd_info = get_keck_keywords(hdr)
-    if 'HST'     in hdr['TELESCOP']: kpd_info = get_nic1_keywords(hdr)
-    if 'simu'    in hdr['TELESCOP']: kpd_info = get_simu_keywords(hdr)
-    if 'Hale'    in hdr['TELESCOP']: kpd_info = get_pharo_keywords(hdr)
-    
-    # read and fine-center the frame
-    if re_center: im = recenter(array, sg_rad=wrad, verbose=False, nbit=20)
-    else:         im = array.copy()
-
-    sz, dz = im.shape[0], im.shape[0]/2  # image is now square
-
-    # meter to pixel conversion factor
-    m2pix = mas2rad(kpd_info['pscale']) * sz / kpd_info['filter']
-    uv_samp = kpi.uv * m2pix + dz # uv sample coordinates in pixels
-    
-    # calculate and normalize Fourier Transform
-    ac = shift(fft(shift(im)))
-    ac /= (np.abs(ac)).max() / kpi.nbh
-
-    xx = np.cast['int'](np.round(uv_samp[:,1]))
-    yy = np.cast['int'](np.round(uv_samp[:,0]))
-    data_cplx = ac[xx, yy]
-
-    vis2   = np.abs(data_cplx)**2 # square visibilities
-    vis2  /= np.abs(ac[dz,dz])**2 # normalized (just to be sure)
-
-    # ---------------------------
-    # calculate the Kernel-phases
-    # ---------------------------
-    #uvph = kpi.RED * np.angle(data_cplx) # in radians for WFS
-    uvph = np.angle(data_cplx) # uv-phase (in radians for WFS)
-    #kpd_signal = np.dot(kpi.KerPhi, kpi.RED*np.angle(data_cplx)) / dtor
-    kpd_signal = np.dot(kpi.KerPhi, np.angle(data_cplx)) / dtor
-
-    if (save_im): res = (kpd_info, kpd_signal, uvph, vis2, im, ac)
-    else:         res = (kpd_info, kpd_signal, uvph, vis2)
-
-    uvw = np.max(uv_samp)/2
-
-    if plotim or plotuv:
-        plt.clf()
-        f0 = plt.subplot(121)
-        f0.imshow(im[dz-wrad:dz+wrad,dz-wrad:dz+wrad]**0.5)
-        f1 = plt.subplot(122)
-        f1.imshow(np.angle(ac))
-        f1.plot(uv_samp[:,0], uv_samp[:,1], 'b.')
-        f1.axis((dz-uvw, dz+uvw, dz-uvw, dz+uvw))
-        plt.draw()
-    return res
-
-# =========================================================================
-# =========================================================================
-def compute_FTM(coords, m2pix, isz, axis=0):
-    ''' ----------------------------------------------------------------------------
-    Computes a discrete Fourier Transform matrix for exact u (or v) coordinates.
+    Based on a LL.dot(img).RR approach.
 
     parameters:
     ----------
-    - coords : a 1D vector of baseline coordinates where the FT will be computed
-    - m2pix  : a scaling parameter, that depends on the wavelength, the plate 
+    - coords : a 1D vector of baseline coordinates where to compute the FT
+    - m2pix  : a scaling parameter, that depends on the wavelength, the plate
                scale and the image size
     - isz    : the image size
-    - axis   : == 0 (default) produces a matrix that acts on the rows of the image
+    - axis   : == 0 (default) produces a matrix that acts on image rows
                != 0 (anything) produces a matrix that acts on its columns
 
     -----------------------------------
 
     Example of use, for an image of size isz:
     
-    >> LL = xara.core.compute_FTM(np.unique(kpi.uv[:,1]), m2pix, isz, 0)
-    >> RR = xara.core.compute_FTM(np.unique(kpi.uv[:,0]), m2pix, isz, 1)
+    >> LL = xara.core.compute_DFTM2(np.unique(kpi.uv[:,1]), m2pix, isz, 0)
+    >> RR = xara.core.compute_DFTM2(np.unique(kpi.uv[:,0]), m2pix, isz, 1)
 
     >> FT = LL.dot(img).dot(RR)
 
-    This last command returns the properly sampled FT of the img.
-
-
-    ---------------------------------------------------------------------------- '''
+    This last command returns the properly sampled 2D FT of the img.
+    ----------------------------------------------------------------------- '''
     
     i2pi = 1j * 2 * np.pi
-    i2pi = np.complex256(1j*6.283185307179586476925286766558)
+
     bl_c = coords * m2pix
-    w_v  = np.exp(-i2pi/isz * bl_c, dtype=np.complex256) # vector of roots of the FT matrix
+    w_v  = np.exp(-i2pi/isz * bl_c, dtype=np.complex128) # roots of DFT matrix
     ftm  = np.zeros((w_v.size, isz), dtype=w_v.dtype)
     
     for i in range(isz):
@@ -523,3 +445,44 @@ def compute_FTM(coords, m2pix, isz, axis=0):
         return(ftm.T)
     else:
         return(ftm)
+
+# =========================================================================
+# =========================================================================
+def compute_DFTM1(coords, m2pix, isz):
+    ''' ------------------------------------------------------------------
+    Single-sided DFT matrix to be used with the "LDFT1" extraction method,
+    DFT matrix computed for exact u (or v) coordinates.
+
+    Based on a FF.dot(img) approach.
+
+    parameters:
+    ----------
+    - coords : a 1D vector of baseline coordinates where to compute the FT
+    - m2pix  : a scaling parameter, that depends on the wavelength, the 
+               plate scale and the image size
+    - isz    : the image size
+
+    For an image of size (SZ x SZ), the computation requires what can be a
+    fairly large (N_UV x SZ^2) auxilliary matrix.
+    -----------------------------------
+
+    Example of use, for an image of size isz:
+    
+    >> FF = xara.core.compute_DFTM1(np.unique(kpi.uv[:,1]), m2pix, isz, 0)
+
+    >> FT = FF.dot(img.fnatten())
+
+    This last command returns a 1D vector FT of the img.
+    ------------------------------------------------------------------ '''
+
+    i2pi  = 1j * 2 * np.pi
+
+    xx,yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
+    uvc   = coords * m2pix
+    nuv   = uvc.shape[0]
+    WW    = np.zeros((nuv, isz**2), dtype=np.complex128)
+    
+    for i in range(nuv):
+        WW[i] = np.exp(-i2pi*(uvc[i,0] * xx.flatten() +
+                              uvc[i,1] * yy.flatten())/float(isz))
+    return(WW)
