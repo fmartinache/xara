@@ -80,9 +80,9 @@ def cvis_binary(u, v, wavel, p, detpa=None):
         
     p = np.array(p)
     # relative locations
-    th = (p[1] + 90.0) * dtor
-    ddec =  mas2rad(p[0] * np.sin(th - th0))
-    dra  = -mas2rad(p[0] * np.cos(th - th0))
+    th = p[1] * dtor
+    ddec =  mas2rad(p[0] * np.cos(th + th0))
+    dra  = -mas2rad(p[0] * np.sin(th + th0))
 
     # baselines into number of wavelength
     x = np.hypot(u,v)/wavel
@@ -108,65 +108,6 @@ def cvis_binary(u, v, wavel, p, detpa=None):
     return cvis
 
 # =========================================================================
-# Experiment: original version does not reflect the reality of a
-# 1:1 binary, for which things should be computed from the barycenter
-# note that this doesn't matter when dealing with kernel-phase
-# =========================================================================
-def cvis_binary2(u, v, wavel, p, detpa=None):
-    ''' Calc. complex vis measured by an array for a binary star
-    ----------------------------------------------------------------
-    p: 3-component vector (+2 optional), the binary "parameters":
-    - p[0] = sep (mas)
-    - p[1] = PA (deg) E of N.
-    - p[2] = contrast ratio (primary/secondary)
-    
-    optional:
-    - p[3] = angular size of primary (mas)
-    - p[4] = angular size of secondary (mas)
-
-    - u,v: baseline coordinates (meters)
-    - wavel: wavelength (meters)
-
-    - detpa: detector position angle (degrees)
-    ---------------------------------------------------------------- '''
-    if detpa is None:
-        th0 = 0.0
-    else:
-        th0 = detpa * dtor
-
-    p = np.array(p)
-    # relative locations
-    th = (p[1] + 90.0) * dtor
-    ddec =  mas2rad(p[0] * np.sin(th + th0))
-    dra  = -mas2rad(p[0] * np.cos(th + th0))
-
-    # baselines into number of wavelength
-    x = np.hypot(u,v)/wavel
-
-    # decompose into two "luminosity"
-    l2 = 1. / (p[2] + 1.)
-    l1 = 1. - l2
-
-    print("l1, l2, l1+l2 = ", l1, l2, l1+l2)
-    
-    # phase-factor
-    phi1 = np.exp( i2pi * l1*(u*dra + v*ddec) / wavel)
-    phi2 = np.exp(-i2pi * l2*(u*dra + v*ddec) / wavel)
-
-    # optional effect of resolved individual sources
-    if p.size == 5:
-        th1, th2 = mas2rad(p[3]), mas2rad(p[4])
-        v1 = 2*j1(np.pi*th1*x)/(np.pi*th1*x)
-        v2 = 2*j1(np.pi*th2*x)/(np.pi*th2*x)
-    else:
-        v1 = np.ones(u.size)
-        v2 = np.ones(u.size)
-
-    cvis = l1 * v1 * phi1 + l2 * v2 * phi2
-
-    return cvis
-
-# =========================================================================
 # =========================================================================
 def grid_precalc_aux_cvis(u, v, wavel, mgrid, gscale):
     ''' Pre-calculates an auxilliary array necessary for the complex 
@@ -182,8 +123,8 @@ def grid_precalc_aux_cvis(u, v, wavel, mgrid, gscale):
     xx,yy = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
 
     # flatten all 2D arrays 
-    dra  = mas2rad(gscale * np.ravel(yy))
-    ddec = mas2rad(gscale * np.ravel(xx))
+    dra  = mas2rad(gscale * np.ravel(xx))
+    ddec = mas2rad(gscale * np.ravel(yy))
 
     c0 = -2j * np.pi / wavel # pre-compute coeff for speed?
     phi = np.exp(c0 * (np.outer(u, dra) + np.outer(v, ddec)))
