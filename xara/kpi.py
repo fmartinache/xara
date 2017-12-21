@@ -242,7 +242,7 @@ class KPI(object):
             
             bmax = blength.max()
             keep = (blength < bfilter * bmax)
-            self.uv = uv_sampl[keep]
+            self.UVC = uv_sampl[keep]
             self.nbuv = (self.UVC.shape)[0]
 
             print("%d baselines were preserved after filtering" % (self.nbuv,))

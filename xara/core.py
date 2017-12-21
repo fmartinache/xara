@@ -142,8 +142,8 @@ def grid_src_cvis(u, v, wavel, mgrid, gscale, phi=None):
     - phi:    pre-computed auxilliary array to speed up calculation
     ---------------------------------------------------------------- '''
 
-    if phi == None:
-        phi = cvis_precalc_aux(u, v, wavel, mgrid, gscale)
+    if phi is None:
+        phi = grid_precalc_aux_cvis(u, v, wavel, mgrid, gscale)
     cvis = np.dot(phi, np.ravel(mgrid))
     
     return cvis
