@@ -75,7 +75,8 @@ class KPO():
         try:
             hdul = fits.open(fname)
         except:
-            raise UserWarning("File provided is not a fits file")
+            print("File provided is not a fits file")
+            #raise UserWarning("File provided is not a fits file")
             return
 
         # how many data sets are included?
@@ -292,7 +293,7 @@ class KPO():
         elif 'VLT' in tel_name:
             if 'SPHERE' in hdul[0].header['INSTRUME']:
                 print("The data comes from VLT/SPHERE")
-                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_SPHERE(
+                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_VLT_SPHERE(
                     fnames, target=target, recenter=recenter, wrad=wrad,
                     method=method)
                 
