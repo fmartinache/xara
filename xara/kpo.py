@@ -75,7 +75,7 @@ class KPO():
         try:
             hdul = fits.open(fname)
         except:
-            print("File provided is not a fits file")
+            raise UserWarning("File provided is not a fits file")
             return
 
         # how many data sets are included?
@@ -254,6 +254,9 @@ class KPO():
         If the path leads to a fits data cube, or to multiple single frame
         files, the extracted kernel-phases are consolidated into a unique
         KPD array.
+
+        The details of the extraction procedures will depend on the origin
+        of the file and the way the header keywords are organized.
         
         Parameters:
         ----------
@@ -288,8 +291,17 @@ class KPO():
         # ------------------------------------------------------------
         elif 'VLT' in tel_name:
             if 'SPHERE' in hdul[0].header['INSTRUME']:
-                print("The data comes from VLT - SPHERE")
+                print("The data comes from VLT/SPHERE")
+                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_SPHERE(
+                    fnames, target=target, recenter=recenter, wrad=wrad,
+                    method=method)
                 
+            if 'NAOS+CONICA' in hdul[0].header['INSTRUME']:
+                print("The data comes from VLT/NACO")
+                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_NACO(
+                    fnames, target=target, recenter=recenter, wrad=wrad,
+                    method=method)
+
         # ------------------------------------------------------------
         else:
             print("Extraction for %s not implemented." % (tel_name,))
@@ -366,13 +378,103 @@ class KPO():
         kpdata = [] # Kernel-phase data
         detpa  = [] # detector position angle
         mjdate = [] # modified Julian date
-        wavel  = 0.0
         
+        hdul   = fits.open(fnames[0])
+        xsz    = hdul[0].header['NAXIS1']
+        ysz    = hdul[0].header['NAXIS2']
+        cwavel = 0.8168 * 1e-6 # FIXME
+        pscale = 7.0 # FIXME (ZIMPOL)
+        m2pix  = core.mas2rad(pscale)*xsz/cwavel
+
         if target is None:
-            target = hdul[0].header['OBJECT']      # Target name
+            target = hdul[0].header['HIERARCH ESO OBS TARG NAME']
+        hdul.close()
+
+        index = 0
+        for ii in range(nf):
+            hdul = fits.open(fnames[ii])
+
+            nslice = 1
+            if hdul[0].header['NAXIS'] == 3:
+                nslice = hdul[0].header['NAXIS3']
+            data = hdul[0].data.reshape((nslice, ysz, xsz))
+
+            # ---- extract the Fourier data ----
+            for jj in range(nslice):
+                if recenter:
+                    img = core.recenter(data[jj], sg_rad=50, verbose=False)
+                else:
+                    img = data[jj]
+
+                index += 1
+                temp = self.extract_cvis_from_img(img, m2pix, method)
+                cvis.append(temp)
+                kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+                print("File %s, slice %2d" % (fnames[ii], jj+1))
+                
+                mjdate.append(hdul[0].header['MJD-OBS'])
+            # --- detector position angle read globally ---
+            detpa.append(hdul[1].data['pa'])
+
+            hdul.close()        
 
         return target, cwavel, cvis, kpdata, detpa, mjdate
 
+    # =========================================================================
+    # =========================================================================
+    def __extract_KPD_NACO(self, fnames, target=None,
+                           recenter=True, wrad=None, method="LDFT1"):
+        
+        nf = fnames.__len__()
+        print("%d data fits files will be opened" % (nf,))
+        
+        cvis   = [] # complex visibility
+        kpdata = [] # Kernel-phase data
+        detpa  = [] # detector position angle
+        mjdate = [] # modified Julian date
+
+        hdul   = fits.open(fnames[0])
+        xsz    = hdul[0].header['NAXIS1']
+        ysz    = hdul[0].header['NAXIS2']
+        pscale = hdul[0].header['HIERARCH ESO INS PIXSCALE']*1000.
+        cwavel = hdul[0].header['HIERARCH ESO INS CWLEN'] * 1e-6
+        imsize = hdul[0].header['NAXIS1']
+        m2pix  = core.mas2rad(pscale)*imsize/cwavel
+        
+        if target is None:
+            target = hdul[0].header['HIERARCH ESO OBS TARG NAME']  # Target name
+        hdul.close()
+
+        index = 0
+        for ii in range(nf):
+            hdul = fits.open(fnames[ii])
+
+            nslice = 1
+            if hdul[0].header['NAXIS'] == 3:
+                nslice = hdul[0].header['NAXIS3']
+            data = hdul[0].data.reshape((nslice, ysz, xsz))
+
+            # ---- extract the Fourier data ----
+            for jj in range(nslice):
+                if recenter:
+                    img = core.recenter(data[jj], sg_rad=50, verbose=False)
+                else:
+                    img = data[jj]
+
+                index += 1
+                temp = self.extract_cvis_from_img(img, m2pix, method)
+                cvis.append(temp)
+                kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+                print("File %s, slice %2d" % (fnames[ii], jj+1))
+                
+                mjdate.append(hdul[0].header['MJD-OBS'])
+            # --- detector position angle read globally ---
+            detpa.append(hdul[1].data['pa'])
+
+            hdul.close()
+                
+        return target, cwavel, cvis, kpdata, detpa, mjdate
+    
     # =========================================================================
     # =========================================================================
     def __extract_KPD_Keck(self, fnames, target=None,
