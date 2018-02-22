@@ -274,7 +274,11 @@ class KPO():
         '''
         fnames   = sorted(glob.glob(path))
         hdul     = fits.open(fnames[0])
-        tel_name = hdul[0].header['TELESCOP']
+        try:
+            tel_name = hdul[0].header['TELESCOP']
+        except:
+            tel_name = "JWST" # seems to be the exception?
+            
         # ------------------------------------------------------------
         if 'Keck II' in tel_name:
             print("The data comes from Keck")
@@ -302,7 +306,15 @@ class KPO():
                 tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_NACO(
                     fnames, target=target, recenter=recenter, wrad=wrad,
                     method=method)
-
+        # ------------------------------------------------------------
+        elif 'JWST' in tel_name:
+            # eventually, NIRCAM should be one option here?
+            #if 'NIRISS' in hdul[0].header['INSTRUME']:
+            print("The data comes from JWST/NIRISS")
+            tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_NIRISS(
+                fnames, target=target, recenter=recenter, wrad=wrad,
+                method=method)
+            
         # ------------------------------------------------------------
         else:
             print("Extraction for %s not implemented." % (tel_name,))
@@ -318,6 +330,58 @@ class KPO():
         self.MJDATE.append(np.array(mjdate))
         return
     
+    # =========================================================================
+    # =========================================================================
+    def __extract_KPD_NIRISS(self, fnames, target=None,
+                             recenter=True, wrad=None, method="LDFT1"):
+        
+        nf = fnames.__len__()
+        print("%d data fits files will be opened" % (nf,))
+
+        cvis   = [] # complex visibility
+        kpdata = [] # Kernel-phase data
+        detpa  = [] # detector position angle
+        mjdate = [] # modified Julian date
+
+        hdul   = fits.open(fnames[0])
+        xsz    = hdul[0].header['NAXIS1']       # image x-size
+        ysz    = hdul[0].header['NAXIS2']       # image y-size
+        pscale = hdul[0].header['PIXELSCL'] * 1e3   # plate scale (mas)
+        cwavel = hdul[0].header['WAVELEN']          # central wavelength
+        imsize = xsz                                # chop image
+        m2pix  = core.mas2rad(pscale)*imsize/cwavel # Fourier scaling
+        
+        if target is None:
+            try:
+                target = hdul[0].header['TARGNAME']    # Target name
+            except:
+                target = "NONAME_TARGET"
+
+        hdul.close()
+
+        for ii in range(nf):
+            hdul = fits.open(fnames[ii])
+
+        nslice = 1
+        if hdul[0].header['NAXIS'] == 3:
+            nslice = hdul[0].header['NAXIS3']
+
+        data = hdul[0].data.reshape((nslice, ysz, xsz))
+        
+        # ---- extract the Fourier data ----
+        for jj in range(nslice):
+            img = core.recenter(data[jj], sg_rad=50, verbose=False)
+            temp = self.extract_cvis_from_img(img, m2pix, method)
+            cvis.append(temp)
+            kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+            print("File %s, slice %2d" % (fnames[ii], jj+1))
+            
+            mjdate.append(0.0)
+            detpa.append(0.0)
+        hdul.close()
+
+        return target, cwavel, cvis, kpdata, detpa, mjdate
+
     # =========================================================================
     # =========================================================================
     def __extract_KPD_HST(self, fnames, target=None,
