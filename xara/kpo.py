@@ -370,7 +370,9 @@ class KPO():
         
         # ---- extract the Fourier data ----
         for jj in range(nslice):
-            img = core.recenter(data[jj], sg_rad=50, verbose=False)
+            #img = core.recenter(data[jj], sg_rad=100,
+            #                    verbose=False)[23:104,23:104]
+            img = data[jj]
             temp = self.extract_cvis_from_img(img, m2pix, method)
             cvis.append(temp)
             kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
