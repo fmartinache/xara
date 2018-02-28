@@ -219,6 +219,7 @@ class KPO():
             self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
 
         myft_v = self.FF.dot(image.flatten())
+        myft_v /= (np.abs(myft_v)).max() / self.kpi.nbap
         return(myft_v)
     
     # =========================================================================
@@ -238,7 +239,7 @@ class KPO():
 
         # calculate and normalize the Fourier transform
         ac = shift(fft(shift(image)))
-        ac /= (np.abs(ac)).max() / kpi.nbap
+        ac /= (np.abs(ac)).max() / self.kpi.nbap
 
         xx = np.cast['int'](np.round(uv_samp[:,1]))
         yy = np.cast['int'](np.round(uv_samp[:,0]))
@@ -375,7 +376,8 @@ class KPO():
             img = data[jj]
             temp = self.extract_cvis_from_img(img, m2pix, method)
             cvis.append(temp)
-            kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+            kpdata.append(self.kpi.KPM.dot(np.angle(temp))) # the standard !!
+            #kpdata.append(self.kpi.KPM.dot(temp.imag)) # imaginary part?
             print("File %s, slice %2d" % (fnames[ii], jj+1))
             
             mjdate.append(0.0)

@@ -196,7 +196,8 @@ class KPI(object):
         nbap = self.nbap                # shorthand
         uvx = np.zeros(nbap * (nbap-1)) # prepare empty arrays to store
         uvy = np.zeros(nbap * (nbap-1)) # the baselines
-
+        bgn = np.zeros(nbap * (nbap-1)) # and their "gain"
+        
         k = 0 # index for possible combinations (k = f(i,j))
         
         uvi = np.zeros(nbap * (nbap-1), dtype=int) # arrays to store the possible
@@ -208,6 +209,7 @@ class KPI(object):
                 if i != j:
                     uvx[k] = self.VAC[i,0] - self.VAC[j,0]
                     uvy[k] = self.VAC[i,1] - self.VAC[j,1]
+                    bgn[k] = (self.VAC[i,2] * self.VAC[j,2])
                     # ---
                     uvi[k], uvj[k] = i, j
                     k+=1
@@ -255,10 +257,16 @@ class KPI(object):
         for i in range(self.nbuv):
             a=np.where((np.abs(self.UVC[i,0]-uvx) <= prec) *
                        (np.abs(self.UVC[i,1]-uvy) <= prec))
+            
+            self.BLM[i, uvi[a]] +=  bgn[a]
+            self.BLM[i, uvj[a]] += -bgn[a]
+            self.RED[i]          = np.sum(bgn[a])
+            '''
             self.BLM[i, uvi[a]] +=  1.0
             self.BLM[i, uvj[a]] += -1.0
             self.RED[i]          = np.size(a)
-
+            '''
+            
         # 3. Determine the kernel-phase relations
         # ----------------------------------------
 
@@ -270,9 +278,18 @@ class KPI(object):
         # discard the first column, that is, use the first aperture
         # as a reference?
 
-        self.TFM = self.BLM.dot(np.diag(self.TRM))        # transmission
+        '''
+        #self.TFM = self.BLM.dot(np.diag(self.TRM))        # transmission
+
+        self.TFM = self.BLM.copy()
         self.TFM = self.TFM[:,1:]                         # cf. explanation
         self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
+        '''
+        
+        self.TFM = self.BLM.copy()
+        self.TFM = self.TFM[:,1:]                         # cf. explanation
+        self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
+        
         U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
 
         S1 = np.zeros(self.nbuv)
