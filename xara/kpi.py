@@ -290,7 +290,8 @@ class KPI(object):
         self.TFM = self.TFM[:,1:]                         # cf. explanation
         self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
         
-        U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
+        #U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
+        U, S, Vh = np.linalg.svd(self.BLM[:,1:].T, full_matrices=1)
 
         S1 = np.zeros(self.nbuv)
         S1[0:nbap-1] = S
@@ -298,10 +299,12 @@ class KPI(object):
         self.nbkp  = np.size(np.where(abs(S1) < 1e-3)) # number of Ker-phases
         KPhiCol     = np.where(abs(S1) < 1e-3)[0]
         self.KPM    = np.zeros((self.nbkp, self.nbuv)) # allocate the array
-
+        
         for i in range(self.nbkp):
             self.KPM[i,:] = (Vh)[KPhiCol[i],:]
 
+        self.KPM    = self.KPM.dot(np.diag(self.RED))
+        
         print('10 first singular values for this array:')
         print(np.round(S[:10], ndgt))
         self.summary_properties()
