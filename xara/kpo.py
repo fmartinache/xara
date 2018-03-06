@@ -20,6 +20,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from scipy.optimize import leastsq
+
 try:
     import astropy.io.fits as fits
 except:
@@ -706,6 +708,79 @@ class KPO():
             else:
                 sim.append(temp)
         return np.array(sim)
+        
+    # =========================================================================
+    # =========================================================================
+    def binary_model_fit_residuals(self, params, index=0, calib=None, obs="KERNEL"):
+        model = self.kpd_binary_model(params, index, obs)
+
+        # ----------------
+        # calibrator first
+        # ----------------
+        if calib is not None:
+            if isinstance(calib, int):
+                if self.KPDT[calib].ndim == 2:
+                    clbrt = np.mean(self.KPDT[calib], axis=0)
+                    clerr = np.std(self.KPDT[calib], axis=0)
+                else:
+                    clbrt = self.KPDT[calib]
+                    clerr = np.zeros(self.kpi.nbkp)
+                    
+            else: # assumes that the calib is another kpo
+                if calib.KPDT[0].ndim == 2:
+                    clbrt = np.mean(calib.KPDT[0], axis=0)
+                    clerr = np.std(calib.KPDT[0], axis=0)
+                else:
+                    clbrt = calib.KPDT[0]
+                    clerr = np.zeros(self.kpi.nbkp)
+        else:
+            clbrt = np.zeros(self.kpi.nbkp)
+            clerr = np.zeros(self.kpi.nbkp)
+
+        # ------------------
+        # target of interest
+        # ------------------
+        if self.KPDT[index].ndim == 2:
+            model = np.mean(model, axis=0)
+            error = np.mean(self.KPDT[index], axis=0) - clbrt - model
+            uncrt = np.sqrt(np.var(self.KPDT[index], axis=0) + clerr**2)
+        else:
+            error = self.KPDT[index] - clbrt - model
+            uncrt = None
+
+        if uncrt is not None:
+            error /= uncrt
+        return(error)
+            
+    # =========================================================================
+    # =========================================================================
+    def binary_model_fit(self, p0, index=0, calib=None, obs="KERNEL"):
+        ''' ------------------------------------------------------------------
+        Least square fit a binary to the data.
+
+        Parameters:
+        ----------
+        - p0: initial guess (3 parameter vector) eg. [100.0, 0.0, 5.0]
+
+        optional:
+        - index: the index of the dataset in the current data structure
+                 default value is 0 (first dataset available)
+        - calib: another kpo structure containing a calibrator, or a
+                 different index, corresponding to a calibrator dataset
+                 in the current data structure
+        - obs: just an idea for now?
+        ------------------------------------------------------------------ '''
+        try:
+            test = self.TARGET[index]
+        except:
+            print("Requested dataset (index=%d) does not exist" % (index,))
+            print("No data-matching binary model can be built.")
+            return
+
+        soluce = leastsq(self.binary_model_fit_residuals, 
+                         p0, args=((index, calib, obs,)), full_output=1)
+    
+        return(soluce)
         
     # =========================================================================
     # =========================================================================

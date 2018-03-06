@@ -113,47 +113,36 @@ def binary_model(params, kpi, hdr, vis2=False, deg=True):
 
 # =========================================================================
 # =========================================================================
-def binary_KPD_model(kpo, params):
-    ''' Returns a 1D or 2D array of binary models.
-    
-    parameters are:
-    - the kp structure (kpo) to be used as a template
-    - the list of parameters of the binary model. '''
-
-    models = np.zeros_like(kpo.kpd)
-
-    nm = np.size(kpo.hdr) # number of kp realizations in kpo
-
-    if nm == 1:
-        models = binary_model(params, kpo.kpi, kpo.hdr)
-    else:
-        for i in xrange(nm):
-            models[i] = binary_model(params, kpo.kpi, kpo.hdr[i])
-
-    return models
-
-# =========================================================================
-# =========================================================================
-def binary_KPD_fit_residuals(params, kpo):
+def binary_KPD_fit_residuals(params, kpo, kpdt, kpde=None):
     ''' Function to evaluate fit residuals, to be used in a leastsq
-    fitting procedure. '''
+    fitting procedure. 
 
-    #test = binary_model(params, kpo.kpi, kpo.hdr)
-    #test = binary_model(params, kpo.kpi, kpo.hdr[0])
-    test = binary_KPD_model(kpo, params)
-    err = kpo.kpd - test
-    if kpo.kpe != None:
-        err /= kpo.kpe
+    Parameters:
+    ----------
+    - kpo  : a kernel-phase observation data-structure (linear model info)
+    - kpdt : a (calibrated) vector of kernel-phases
+    - kpde : associated vector of kernel-phase uncertainties
+    '''
+    model = kpo.kpd_binary_model(params, 0, "KERNEL")[0]
+
+    err = kpdt - model
+    if kpde is not None:
+        err /= kpde
     return err
 
 # =========================================================================
 # =========================================================================
-def binary_KPD_fit(kpo, p0):
-    '''Performs a best binary fit search for the datasets.
+def binary_KPD_fit(p0, kpo, kpdt, kpde=None):
+    '''Performs a best binary fit search.
     
+    Parameters:
+    ----------
+    - p0 is the initial guess for the parameters 3 parameter vector
+      typical example would be : [100.0, 0.0, 5.0].
+    - kpo  : a kernel-phase observation data-structure (linear model info)
+    - kpdt : a (calibrated) vector of kernel-phases
+    - kpde : associated vector of kernel-phase uncertainties
     -------------------------------------------------------------
-    p0 is the initial guess for the parameters 3 parameter vector
-    typical example would be : [100.0, 0.0, 5.0].
     
     returns the full solution of the least square fit:
     - soluce[0] : best-fit parameters
@@ -161,8 +150,8 @@ def binary_KPD_fit(kpo, p0):
     ------------------------------------------------------------- '''
     
     soluce = leastsq(binary_KPD_fit_residuals, 
-                     p0, args=((kpo,)),
-                     full_output=1)
+                     p0, args=((kpo, kpdt, kpde)),
+                     full_output=1)#, factor=0.1)
     
     covar = soluce[1]
     return soluce
@@ -409,6 +398,9 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
 
     Note: this function requires properly calibrated observables.
     ------------------------------------------------------------- '''
+    kpo.__kpd__ = np.median(self.KPDT[0], axis=0) # hidden variables!
+    kpo.__kpe__ = np.std(self.KPDT[0], axis=0)    # hidden variables!
+    
     plt.figure(0, figsize=(10,5))
 
     [smin, smax, amin, amax, cmin, cmax] = params
@@ -574,13 +566,13 @@ def loglikelihood(kpo, sep, angle, contrast, mode='kp'):
     Pass the mode 'vis' to use visibility fitting'''
 
     if mode == 'kp':
-        modl_ker = binary_model([sep,angle,contrast],kpo.kpi, kpo.hdr)
-
-        chisquared = np.sum(((modl_ker - kpo.kpd)/(kpo.kpe))**2)
+        modl_ker = kpo.kpd_binary_model([sep, angle, contrast], 0, "KERNEL")[0]
+        chisquared = np.sum(((modl_ker - kpo.__kpd__)/(kpo.__kpe__))**2)
+        
     elif mode == 'vis':
-        test = vis2_binary(kpo.kpi.uv[:,0],kpo.kpi.uv[:,1], kpo.hdr['filter'],
-                           [sep, angle, contrast])
+        test = kpo.kpd_binary_model([sep, angle, contrast], 0, "AMPLI")[0]**2
         chisquared = np.sum(((test - kpo.v2)/(kpo.vis_error))**2)
+        
     else:
         print 'Invalid mode'
 
