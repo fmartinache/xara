@@ -602,6 +602,30 @@ class KPO():
     
     # =========================================================================
     # =========================================================================
+    def append_cov_matrix(self, cov_mat=None):
+        '''------------------------------------------------------------------
+        Appends a covariance matrix to the KPO data-structure.
+        
+        Parameters:
+        ----------
+        - cov_mat: the covariance matrix (a numpy array)
+
+        Remarks: 
+        ------- 
+
+        The covariance matrix is expected to be computed externally (e.g. using
+        MC simulations), and passed as an argument. Future versions of the code
+        will include the means to compute this covariance analytically for the
+        photon noise.
+        ------------------------------------------------------------------ '''
+        if cov_mat is not None:
+            self.kp_cov = cov_mat
+        else:
+            # this is a place holder for later
+            print("Provide an externally provided covariance matrix")
+
+    # =========================================================================
+    # =========================================================================
     def save_as_fits(self, fname):
         ''' ------------------------------------------------------------------
         Exports the KPO data structure (KPI + KPDT) as a multi-extension FITS
@@ -649,6 +673,14 @@ class KPO():
             kpi_hdu.header['EXTNAME'] = 'KP-INFO%d' % (ii+1,)
             self.hdul.append(kpi_hdu)
 
+        if self.kp_cov is not None:
+            kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
+            kcv_hdu.header.add_comment("Kernel-phase covariance matrix")
+            kcv_hdu.header['EXTNAME'] = 'KP-COV'
+            self.hdul.append(kcv_hdu)
+            self.hdul[0].header.add_comment("KP covariance extension included")
+
+        # ------------------------
         self.hdul.writeto(fname, overwrite=True)
 
     # =========================================================================
