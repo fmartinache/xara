@@ -389,7 +389,7 @@ def compute_DFTM2(coords, m2pix, isz, axis=0):
 
 # =========================================================================
 # =========================================================================
-def compute_DFTM1(coords, m2pix, isz):
+def compute_DFTM1(coords, m2pix, isz, inv=False):
     ''' ------------------------------------------------------------------
     Single-sided DFT matrix to be used with the "LDFT1" extraction method,
     DFT matrix computed for exact u (or v) coordinates.
@@ -398,10 +398,14 @@ def compute_DFTM1(coords, m2pix, isz):
 
     parameters:
     ----------
-    - coords : a 1D vector of baseline coordinates where to compute the FT
+    - coords : vector of baseline (u,v) coordinates where to compute the FT
     - m2pix  : a scaling parameter, that depends on the wavelength, the 
                plate scale and the image size
     - isz    : the image size
+
+    Option:
+    ------
+    - inv    : Boolean (default=False) : True -> computes inverse DFT matrix
 
     For an image of size (SZ x SZ), the computation requires what can be a
     fairly large (N_UV x SZ^2) auxilliary matrix.
@@ -409,7 +413,7 @@ def compute_DFTM1(coords, m2pix, isz):
 
     Example of use, for an image of size isz:
     
-    >> FF = xara.core.compute_DFTM1(np.unique(kpi.uv[:,1]), m2pix, isz, 0)
+    >> FF = xara.core.compute_DFTM1(np.unique(kpi.UVC), m2pix, isz)
 
     >> FT = FF.dot(img.fnatten())
 
@@ -421,9 +425,16 @@ def compute_DFTM1(coords, m2pix, isz):
     xx,yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
     uvc   = coords * m2pix
     nuv   = uvc.shape[0]
-    WW    = np.zeros((nuv, isz**2), dtype=np.complex128)
+
+    if inv is True:
+        WW    = np.zeros((isz**2, nuv), dtype=np.complex128)
+        for i in range(nuv):
+            WW[:,i] = np.exp(i2pi*(uvc[i,0] * xx.flatten() +
+                                   uvc[i,1] * yy.flatten())/float(isz))
+    else:        
+        WW    = np.zeros((nuv, isz**2), dtype=np.complex128)
     
-    for i in range(nuv):
-        WW[i] = np.exp(-i2pi*(uvc[i,0] * xx.flatten() +
-                              uvc[i,1] * yy.flatten())/float(isz))
+        for i in range(nuv):
+            WW[i] = np.exp(-i2pi*(uvc[i,0] * xx.flatten() +
+                                  uvc[i,1] * yy.flatten())/float(isz))
     return(WW)

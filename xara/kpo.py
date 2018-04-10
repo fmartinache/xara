@@ -117,6 +117,50 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
+    def KP_filter_img(self, image, pscale, cwavel):
+        ''' -----------------------------------------------------------------
+        !!EXPERIMENTAL!!
+
+        Kernel-phase filtering of an image.
+
+        One image is Fourier-transformed, its phase filtered by kernel and
+        inverse Fourier-transformed, so that an "image" is returned.
+
+        The function currently returns a complex array. First few tryouts
+        suggest one should look at the real part of that "image".
+
+
+        Parameters:
+        ----------
+        - image: 2D image to be cleaned
+        - pscale: the plate scale of that image        (in mas/pixel) 
+        - cwavel: the central wavelength of that image (in meters)
+
+        ----------------------------------------------------------------- '''
+
+        ISZ   = image.shape[0]
+        m2pix = core.mas2rad(pscale) * ISZ / cwavel
+
+        print(m2pix)
+        
+        try:
+            test = self.kpi.iKPM
+        except:
+            self.kpi.iKPM = np.linalg.pinv(self.kpi.KPM)
+
+        cvis  = self.extract_cvis_from_img(image, m2pix)
+        kkphi = self.kpi.iKPM.dot(self.kpi.KPM).dot(np.angle(cvis))
+        cvis2 = np.abs(cvis)*np.exp(1j*kkphi)
+
+        try:
+            test = self.iFF
+        except:
+            self.iFF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ, True)
+        img1 = (self.iFF.dot(cvis2)).reshape(ISZ, ISZ)
+        return(img1)
+
+    # =========================================================================
+    # =========================================================================
     def extract_cvis_from_img(self, image, m2pix, method="LDFT1"):
         ''' -----------------------------------------------------------------
         Extracts the complex visibility vector of a 2D image for the KPI.
@@ -248,6 +292,61 @@ class KPO():
         myft_v = ac[xx, yy]
         return(myft_v)
     
+    # =========================================================================
+    # =========================================================================
+    def create_UVP_cov_matrix(self, var_img, option="RED"):
+        ''' -------------------------------------------------------------------
+        generate the covariance matrix for the UV phase.
+
+        For photon noise, the covariance matrix of the imaginary part of
+        the Fourier transform can be computed explicitly. To go from that to
+        the covariance of the phase takes a bit of a stretch for 2 reasons:
+        - Arctan(imag/real) ~ imag/real for small angles only
+        - the real part: model redundancy or "real part"
+
+        Parameters:
+        ----------
+        - var_img: a 2D image with variance per pixel
+
+        Option:
+        ------
+        This is an ongoing investigation: should the computation involve the
+        model redundancy or the real part of the Fourier transform? In the 
+        latter scenario, should the computation include cross-terms between
+        imaginary and real parts to be more exact?
+        
+        - "RED": default, uses the model redundancy vector
+        - "REAL": uses the real part of the FT
+        - "CPLX": complete computation
+
+        Note: Covariance matrix can also be computed via MC simulations, if
+        you are unhappy with the current one. See "append_cov_matrix()"
+        ------------------------------------------------------------------- '''
+
+        ISZ = var_img.shape[0]
+        try:
+            test = self.FF # check to avoid recomputing auxilliary arrays!
+
+        except:
+            m2pix = 1.0
+            self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
+
+        dummy = np.diag(var_img.flatten())
+        
+        if option == "RED":
+            temp = np.diag(1.0/self.kpi.RED).dot(self.FF.imag)
+            self.kp_cov = temp.dot(dummy).dot(temp.T)
+            print("Covariance Matrix computed using model redundancy vector!")
+            
+        if option == "REAL":
+            temp = np.diag(1.0/self.FF.real.dot(dummy)).dot(self.FF.imag)
+            self.kp_cov = temp.dot(dummy).dot(temp.T)
+            print("Covariance Matrix computed using the real part of FT!")
+            
+        if option == "CPLX":
+            self.kp_cov = None
+            print("Not implemented yet!")
+
     # =========================================================================
     # =========================================================================
     def extract_KPD(self, path, target=None,
@@ -613,10 +712,9 @@ class KPO():
         Remarks: 
         ------- 
 
-        The covariance matrix is expected to be computed externally (e.g. using
-        MC simulations), and passed as an argument. Future versions of the code
-        will include the means to compute this covariance analytically for the
-        photon noise.
+        The covariance matrix is expected to be computed externally (e.g.
+        using MC simulations), and passed as an argument. It is possible to
+        compute analytically an approximate covariance matrix.
         ------------------------------------------------------------------ '''
         if cov_mat is not None:
             self.kp_cov = cov_mat
