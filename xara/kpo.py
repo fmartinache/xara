@@ -147,9 +147,11 @@ class KPO():
             test = self.kpi.iKPM
         except:
             self.kpi.iKPM = np.linalg.pinv(self.kpi.KPM)
+            self.kpi.KPFILT = self.kpi.iKPM.dot(self.kpi.KPM)
 
         cvis  = self.extract_cvis_from_img(image, m2pix)
-        kkphi = self.kpi.iKPM.dot(self.kpi.KPM).dot(np.angle(cvis))
+        #kkphi = self.kpi.iKPM.dot(self.kpi.KPM).dot(np.angle(cvis))
+        kkphi = self.kpi.KPFILT.dot(np.angle(cvis))
         cvis2 = np.abs(cvis)*np.exp(1j*kkphi)
 
         try:
