@@ -783,6 +783,31 @@ class KPO():
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
 
+
+    # =========================================================================
+    # =========================================================================
+    def kpd_binary_match_map(self, gsz, gstep, kp_signal):
+        """ Produces a 2D-map showing where the best binary fit occurs
+        
+        Parameters:
+        ----------
+        - gsz       : grid size (gsz x gsz)
+        - gstep     : grid step in mas
+        - kp_signal : the kernel-phase vector 
+        ---------------------------------------------------------------
+        """
+        mgrid = np.zeros((gsz, gsz))
+
+        phi = core.grid_precalc_aux_cvis(
+            self.kpi.UVC[:,0],
+            self.kpi.UVC[:,1],
+            self.CWAVEL, mgrid, gstep)
+        
+        self.kpmap = self.kpi.KPM.dot(np.angle(phi)) # for img reconstruction!
+        crit  = self.kpmap.T.dot(kp_signal)
+        return(crit.reshape(gsz, gsz))
+
+        
     # =========================================================================
     # =========================================================================
     def kpd_binary_model(self, params, index=0, obs="KERNEL"):
