@@ -773,12 +773,22 @@ class KPO():
             kpi_hdu.header['EXTNAME'] = 'KP-INFO%d' % (ii+1,)
             self.hdul.append(kpi_hdu)
 
-        if self.kp_cov is not None:
+        try:
+            test = self.kp_cov
             kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
             kcv_hdu.header.add_comment("Kernel-phase covariance matrix")
             kcv_hdu.header['EXTNAME'] = 'KP-COV'
             self.hdul.append(kcv_hdu)
             self.hdul[0].header.add_comment("KP covariance extension included")
+        except:
+            print("No covariance added")
+
+        #if self.kp_cov is not None:
+        #    kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
+        #    kcv_hdu.header.add_comment("Kernel-phase covariance matrix")
+        #    kcv_hdu.header['EXTNAME'] = 'KP-COV'
+        #    self.hdul.append(kcv_hdu)
+        #    self.hdul[0].header.add_comment("KP covariance extension included")
 
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
