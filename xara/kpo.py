@@ -796,25 +796,35 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
-    def kpd_binary_match_map(self, gsz, gstep, kp_signal):
+    def kpd_binary_match_map(self, gsz, gstep, kp_signal, cref=0.01):
         """ Produces a 2D-map showing where the best binary fit occurs
         
+        Computes the dot product between the kp_signal and a grid (x,y) grid of 
+        possible positions for the companion, for a pre-set contrast.
+
         Parameters:
         ----------
         - gsz       : grid size (gsz x gsz)
         - gstep     : grid step in mas
-        - kp_signal : the kernel-phase vector 
+        - kp_signal : the kernel-phase vector
+        - cref      : reference contrast (optional, default = 0.01)
+
+        Remarks:
+        -------
+        In the high-contrast regime, the amplitude is proportional to the
+        companion brightness ratio.
         ---------------------------------------------------------------
         """
         mgrid = np.zeros((gsz, gsz))
-
-        phi = core.grid_precalc_aux_cvis(
+        
+        cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
             self.kpi.UVC[:,0],
             self.kpi.UVC[:,1],
             self.CWAVEL, mgrid, gstep)
         
-        self.kpmap = self.kpi.KPM.dot(np.angle(phi)) # for img reconstruction!
-        crit  = self.kpmap.T.dot(kp_signal)
+        kpmap = self.kpi.KPM.dot(np.angle(cvis))
+        crit  = kpmap.T.dot(kp_signal)
+
         return(crit.reshape(gsz, gsz))
 
         
