@@ -7,6 +7,15 @@ data structures, using the theory presented by
 - Martinache (2010), ApJ, 724, 464.  
 - Martinache (2013), PASP, 125, 422.
 
+Acknowledgement
+---------------
+
+XARA is a development carried out in the context of the KERNEL project. KERNEL
+has received funding from the European Research Council (ERC) under the
+European Union's Horizon 2020 research and innovation program (grant agreement
+CoG - 683029). For more information about the KERNEL project, visit:
+http://frantzmartinache.eu/index.php/category/kernel/
+
 Recommandation for installation:
 -------------------------------
 
