@@ -296,7 +296,7 @@ class KPO():
     
     # =========================================================================
     # =========================================================================
-    def create_UVP_cov_matrix(self, var_img, option="RED"):
+    def create_UVP_cov_matrix(self, var_img, option="RED", m2pix=None):
         ''' -------------------------------------------------------------------
         generate the covariance matrix for the UV phase.
 
@@ -330,9 +330,13 @@ class KPO():
             test = self.FF # check to avoid recomputing auxilliary arrays!
 
         except:
-            m2pix = 1.0
-            self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
-
+            if m2pix is not None:
+                self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
+            else:
+                print("Fourier matrix and/or m2pix are not available.")
+                print("Please compute Fourier matrix.")
+                return
+ 
         dummy = np.diag(var_img.flatten())
         
         if option == "RED":
