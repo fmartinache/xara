@@ -391,27 +391,27 @@ class KPO():
         if 'Keck II' in tel_name:
             print("The data comes from Keck")
             
-            tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_Keck(
+            tgt, cvis, kpd, detpa, mjdate = self.__extract_KPD_Keck(
                 fnames, target=target, recenter=recenter, wrad=wrad,
                 method=method)
         # ------------------------------------------------------------
         elif 'HST' in tel_name:
             print("The data comes from HST")
 
-            tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_HST(
+            tgt, cvis, kpd, detpa, mjdate = self.__extract_KPD_HST(
                 fnames, target=target, recenter=recenter, wrad=wrad,
                 method=method)
         # ------------------------------------------------------------
         elif 'VLT' in tel_name:
             if 'SPHERE' in hdul[0].header['INSTRUME']:
                 print("The data comes from VLT/SPHERE")
-                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_VLT_SPHERE(
+                tgt, cvis, kpd, detpa, mjdate = self.__extract_KPD_VLT_SPHERE(
                     fnames, target=target, recenter=recenter, wrad=wrad,
                     method=method)
                 
             if 'NAOS+CONICA' in hdul[0].header['INSTRUME']:
                 print("The data comes from VLT/NACO")
-                tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_NACO(
+                tgt, cvis, kpd, detpa, mjdate = self.__extract_KPD_NACO(
                     fnames, target=target, recenter=recenter, wrad=wrad,
                     method=method)
         # ------------------------------------------------------------
@@ -419,7 +419,7 @@ class KPO():
             # eventually, NIRCAM should be one option here?
             #if 'NIRISS' in hdul[0].header['INSTRUME']:
             print("The data comes from JWST/NIRISS")
-            tgt, wl, cvis, kpd, detpa, mjdate = self.__extract_KPD_NIRISS(
+            tgt, cvis, kpd, detpa, mjdate = self.__extract_KPD_NIRISS(
                 fnames, target=target, recenter=recenter, wrad=wrad,
                 method=method)
             
@@ -430,7 +430,6 @@ class KPO():
         # ------------------------------------------------------------
         hdul.close()
         
-        self.CWAVEL = wl
         self.TARGET.append(tgt)
         self.CVIS.append(np.array(cvis))
         self.KPDT.append(np.array(kpd))
@@ -491,7 +490,10 @@ class KPO():
             detpa.append(0.0)
         hdul.close()
 
-        return target, cwavel, cvis, kpdata, detpa, mjdate
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
+        
+        return target, cvis, kpdata, detpa, mjdate
 
     # =========================================================================
     # =========================================================================
@@ -541,7 +543,10 @@ class KPO():
             detpa.append(hdul[0].header['ORIENTAT'])
         hdul.close()
 
-        return target, cwavel, cvis, kpdata, detpa, mjdate
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
+
+        return target, cvis, kpdata, detpa, mjdate
 
     # =========================================================================
     # =========================================================================
@@ -594,7 +599,10 @@ class KPO():
 
             hdul.close()        
 
-        return target, cwavel, cvis, kpdata, detpa, mjdate
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
+
+        return target, cvis, kpdata, detpa, mjdate
 
     # =========================================================================
     # =========================================================================
@@ -649,7 +657,10 @@ class KPO():
 
             hdul.close()
                 
-        return target, cwavel, cvis, kpdata, detpa, mjdate
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
+
+        return target, cvis, kpdata, detpa, mjdate
     
     # =========================================================================
     # =========================================================================
@@ -702,8 +713,11 @@ class KPO():
             detpa.append(hdul[1].data['pa'])
 
             hdul.close()
+
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
                 
-        return target, cwavel, cvis, kpdata, detpa, mjdate
+        return target, cvis, kpdata, detpa, mjdate
     
     # =========================================================================
     # =========================================================================
@@ -787,12 +801,6 @@ class KPO():
         except:
             print("No covariance added")
 
-        #if self.kp_cov is not None:
-        #    kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
-        #    kcv_hdu.header.add_comment("Kernel-phase covariance matrix")
-        #    kcv_hdu.header['EXTNAME'] = 'KP-COV'
-        #    self.hdul.append(kcv_hdu)
-        #    self.hdul[0].header.add_comment("KP covariance extension included")
 
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
