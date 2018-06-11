@@ -21,6 +21,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from scipy.optimize import leastsq
+from scipy.sparse import diags
 
 try:
     import astropy.io.fits as fits
@@ -337,7 +338,7 @@ class KPO():
                 print("Please compute Fourier matrix.")
                 return
  
-        dummy = np.diag(var_img.flatten())
+        dummy = diags(var_img.flatten())
         
         if option == "RED":
             temp = np.diag(1.0/self.kpi.RED).dot(self.FF.imag)
