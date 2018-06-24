@@ -102,7 +102,10 @@ class KPO():
             self.DETPA.append(hdul['KP-INFO%d' % (ii+1,)].data['DETPA'])
             self.MJDATE.append(hdul['KP-INFO%d' % (ii+1,)].data['MJD'])
             self.TARGET.append(hdul[0].header['TARGET%d' % (ii+1,)])
-        self.CWAVEL = hdul[0].header['CWAVEL']
+        try:
+            self.CWAVEL = hdul[0].header['CWAVEL']
+        except:
+            print("CWAVEL was not set")
         # end
         # ---
         hdul.close()
