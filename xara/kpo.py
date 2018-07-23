@@ -809,7 +809,6 @@ class KPO():
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
 
-
     # =========================================================================
     # =========================================================================
     def kpd_binary_match_map(self, gsz, gstep, kp_signal, cref=0.01):
@@ -842,7 +841,39 @@ class KPO():
         crit  = kpmap.T.dot(kp_signal)
 
         return(crit.reshape(gsz, gsz))
+    
+    # =========================================================================
+    # =========================================================================
+    def kpd_binary_cdet(self, gsz, gstep, kp_error, cref=0.01):
+        """Produces a 2D 1-sigma contrast detection limit map, provided a kernel
+        uncertainty vector "kp_error" and parameters that define a grid.
+        
+        In the high-contrast detection regime, the kernel signal is proportionnal 
+        to the contrast.
 
+        Parameters:
+        ----------
+        - gsz       : grid size (gsz x gsz)
+        - gstep     : grid step in mas
+        - kp_error  : the kernel-phase uncertainty vector
+        - cref      : reference contrast (optional, default = 0.01)
+
+        Returns:
+        -------
+        A 2D map of attainable contrast (in magnitudes)
+        ---------------------------------------------------------------
+
+        """
+        mgrid = np.zeros((gsz, gsz))
+        
+        cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
+            self.kpi.UVC[:,0], self.kpi.UVC[:,1],
+            self.CWAVEL, mgrid, gstep)
+        
+        kpmap = self.kpi.KPM.dot(np.angle(cvis)) / cref
+        clim  = 1.0 / np.sqrt((1.0/kp_error**2).T.dot(kpmap**2))
+        cmag = -2.5 * np.log10(clim)
+        return(cmag.reshape(gsz, gsz))
         
     # =========================================================================
     # =========================================================================
