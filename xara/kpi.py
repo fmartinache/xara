@@ -352,6 +352,7 @@ class KPI(object):
                 self.TRM = np.array(tmp['TRM'])
             except:
                 self.TRM  = np.ones(self.nbap, dtype=float)
+            self.VAC = np.array([tmp['XXC'], tmp['YYC'], tmp['TRM']]).T
             self.mask = self.VAC
         except:
             print('APERTURE HDU not available')
@@ -441,31 +442,44 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax = 8.0, figsize=(10,5), plot_redun = False):
+    def plot_pupil_and_uv(self, xymax = 8.0, figsize=(12,6), plot_redun = False,
+                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0):
         '''Nice plot of the pupil sampling and matching uv plane.
 
         --------------------------------------------------------------------
-        Parameters:
+        Options:
         ----------
 
-        - xymax: radius of the region represented in the baseline plot (meters)
-        - plot_redun: flag to add the redundancy vector information (boolean)
+        - xymax: radius of baseline plot in meters        (default=8.0)
+        - figsize: matplotlib figure size                 (default=(12,6))
+        - plot_redun: bool add the redundancy information (default=False)
+        - cmap: matplotlib colormap                       (default:cm.gray)
+        - ssize: symbol size                              (default=12)
+        - lw:  line width for symbol outline              (default=0)
+        - alpha: gamma                                    (default=1)
         - -------------------------------------------------------------------
-
         '''
 
         f0 = plt.figure(figsize=figsize)
         plt.clf()
         ax0 = plt.subplot(121)
-        ax0.plot(self.mask[:,0], self.mask[:,1], 'bo')
+
+        s1, s2 = ssize**2, (ssize/2)**2
+        ax0.scatter(self.VAC[:,0], self.VAC[:,1], s=s1, c=self.VAC[:,2],
+                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
         ax0.axis([-xymax, xymax, -xymax, xymax], aspect='equal')
-        #ax0.title(self.name+' pupil')
+        ax0.set_xlabel("Aperture x-coordinate (meters)")
+        ax0.set_ylabel("Aperture y-coordinate (meters)")
 
         ax1 = plt.subplot(122)
-        ax1.plot(self.uv[:,0],   self.uv[:,1], 'b.') # plot baselines + symetric
-        ax1.plot(-self.uv[:,0], -self.uv[:,1], 'r.') # for a "complete" feel
-        #ax1.title(self.name+' uv coverage')
+        ax1.scatter(-self.UVC[:,0], -self.UVC[:,1], s=s2, c=self.RED,
+                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
+        ax1.scatter(self.UVC[:,0], self.UVC[:,1], s=s2, c=self.RED,
+                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
+        
         ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax], aspect='equal')
+        ax1.set_xlabel("Fourier u-coordinate (meters)")
+        ax1.set_ylabel("Fourier v-coordinate (meters)")
 
         # complete previous plot with redundancy of the baseline
         # -------------------------------------------------------
@@ -478,6 +492,8 @@ class KPI(object):
         ax0.axis('equal')
         ax1.axis('equal')
         plt.draw()
+        f0.set_tight_layout(True)
+        return f0
 
     # =========================================================================
     # =========================================================================
