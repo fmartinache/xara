@@ -72,6 +72,7 @@ class KPO():
         self.KPDT   = [] # kernel-phase data
         self.DETPA  = [] # detector position angles
         self.MJDATE = [] # data modified Julian date
+        self.M2PIX = -1  # used to save time in later computations
         
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
@@ -109,6 +110,7 @@ class KPO():
         # end
         # ---
         hdul.close()
+        
         
     # =========================================================================
     # =========================================================================
@@ -186,6 +188,7 @@ class KPO():
         else:
             res = None
             print("Requested method %s does not exist" % (method,))
+        self.M2PIX = m2pix # to check the validity of aux data next time !
         return res
     
     # =========================================================================
@@ -215,10 +218,10 @@ class KPO():
         ------------------------------------------------------------------- '''
         (XSZ, YSZ) = image.shape
 
-        try:
-            test = self.LL # check to avoid recomputing auxilliary arrays!
-            
-        except: # do the auxilliary computations
+        if m2pix != self.M2PIX:
+            print("First time for m2pix = %.2f: " % (m2pix,))
+            print("LEDF2: Computing new auxilliary data...")
+        
             self.bl_v = np.unique(self.kpi.UVC[:,1])
             self.bl_u = np.unique(self.kpi.UVC[:,0])
 
@@ -234,6 +237,7 @@ class KPO():
             self.uv_j = np.round(self.kpi.UVC[:,1] / self.vstep, 1)
             self.uv_j -= self.uv_j.min()
             self.uv_j = self.uv_j.astype('int')
+            print("Done!")
             
         myft = self.LL.dot(image).dot(self.RR) # this is the DFT
         myft_v = myft[self.uv_j, self.uv_i]
@@ -264,12 +268,13 @@ class KPO():
         The alternative method is *extract_cvis_ldft2*
         ------------------------------------------------------------------- '''
         ISZ = image.shape[0]
-        try:
-            test = self.FF # check to avoid recomputing auxilliary arrays!
 
-        except:
+        if m2pix != self.M2PIX:
+            print("First time for m2pix = %.2f: " % (m2pix,))
+            print("LDFT1: Computing new Fourier matrix...")
             self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
-
+            print("Done!")
+            
         myft_v = self.FF.dot(image.flatten())
         myft_v /= (np.abs(myft_v)).max() / self.kpi.nbap
         return(myft_v)
@@ -587,7 +592,7 @@ class KPO():
             # ---- extract the Fourier data ----
             for jj in range(nslice):
                 if recenter:
-                    img = core.recenter(data[jj], sg_rad=50, verbose=False)
+                    img = core.recenter(data[jj], sg_rad=150, verbose=False)
                 else:
                     img = data[jj]
 
@@ -599,7 +604,7 @@ class KPO():
                 
                 mjdate.append(hdul[0].header['MJD-OBS'])
             # --- detector position angle read globally ---
-            detpa.append(hdul[1].data['pa'])
+            detpa.append(0.0)#hdul[0].data['pa'])
 
             hdul.close()        
 
