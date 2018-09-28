@@ -340,7 +340,7 @@ def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
 
     #dummy = im
     # image masking, and set integral to right value
-    dummy *= sgmask
+    # dummy *= sgmask
 
     return (dummy * mynorm / dummy.sum())
 
