@@ -350,12 +350,12 @@ class KPO():
         
         if option == "RED":
             temp = np.diag(1.0/self.kpi.RED).dot(self.FF.imag)
-            self.kp_cov = temp.dot(dummy).dot(temp.T)
+            self.kp_cov = temp.dot(dummy.dot(temp.T))
             print("Covariance Matrix computed using model redundancy vector!")
             
         if option == "REAL":
-            temp = np.diag(1.0/self.FF.real.dot(dummy)).dot(self.FF.imag)
-            self.kp_cov = temp.dot(dummy).dot(temp.T)
+            temp = np.diag(1.0/self.FF.real.dot(var_img.flatten())).dot(self.FF.imag)
+            self.kp_cov = temp.dot(dummy.dot(temp.T))
             print("Covariance Matrix computed using the real part of FT!")
             
         if option == "CPLX":
