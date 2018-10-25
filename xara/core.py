@@ -389,7 +389,7 @@ def compute_DFTM2(coords, m2pix, isz, axis=0):
 
 # =========================================================================
 # =========================================================================
-def compute_DFTM1(coords, m2pix, isz, inv=False):
+def compute_DFTM1(coords, m2pix, isz, inv=False, dprec=True):
     ''' ------------------------------------------------------------------
     Single-sided DFT matrix to be used with the "LDFT1" extraction method,
     DFT matrix computed for exact u (or v) coordinates.
@@ -406,6 +406,7 @@ def compute_DFTM1(coords, m2pix, isz, inv=False):
     Option:
     ------
     - inv    : Boolean (default=False) : True -> computes inverse DFT matrix
+    - dprec  : double precision (default=True) 
 
     For an image of size (SZ x SZ), the computation requires what can be a
     fairly large (N_UV x SZ^2) auxilliary matrix.
@@ -422,17 +423,22 @@ def compute_DFTM1(coords, m2pix, isz, inv=False):
 
     i2pi  = 1j * 2 * np.pi
 
+    mydtype = np.complex64
+    
+    if dprec is True:
+        mydtype = np.complex128
+        
     xx,yy = np.meshgrid(np.arange(isz)-isz/2, np.arange(isz)-isz/2)
     uvc   = coords * m2pix
     nuv   = uvc.shape[0]
 
     if inv is True:
-        WW    = np.zeros((isz**2, nuv), dtype=np.complex128)
+        WW    = np.zeros((isz**2, nuv), dtype=mydtype)
         for i in range(nuv):
             WW[:,i] = np.exp(i2pi*(uvc[i,0] * xx.flatten() +
                                    uvc[i,1] * yy.flatten())/float(isz))
     else:        
-        WW    = np.zeros((nuv, isz**2), dtype=np.complex128)
+        WW    = np.zeros((nuv, isz**2), dtype=mydtype)
     
         for i in range(nuv):
             WW[i] = np.exp(-i2pi*(uvc[i,0] * xx.flatten() +
