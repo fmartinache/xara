@@ -18,6 +18,7 @@ import sys
 from scipy.signal import medfilt2d as medfilt
 from scipy.special import j1
 from cameras import *
+from scipy.optimize import leastsq
 
 ''' ================================================================
     small tools and functions useful for the manipulation of
@@ -213,9 +214,20 @@ def super_gauss(xs, ys, x0, y0, w):
 
 # =========================================================================
 # =========================================================================
-def centroid(image, threshold=0, binarize=0):                        
+def centroid(image, threshold=0, binarize=False):                        
     ''' ------------------------------------------------------
-        simple determination of the centroid of a 2D array
+    Determines the center of gravity of an array
+
+    Parameters:
+    ----------
+    - image: the array
+    - threshold: value above which pixels are taken into account
+    - binarize: binarizes the image before centroid (boolean) 
+
+    Remarks:
+    -------
+    The binarize option can be useful for apertures, expected 
+    to be uniformly lit.
     ------------------------------------------------------ '''
 
     signal = np.where(image > threshold)
@@ -223,8 +235,11 @@ def centroid(image, threshold=0, binarize=0):
     bkg_cnt = np.median(image)                                       
 
     temp = np.zeros((sy, sx))
-    if (binarize == 1): temp[signal] = 1.0
-    else:               temp[signal] = image[signal]
+    
+    if binarize is True:
+        temp[signal] = 1.0
+    else:
+        temp[signal] = image[signal]
 
     profx = 1.0 * temp.sum(axis=0)
     profy = 1.0 * temp.sum(axis=1)
@@ -278,13 +293,197 @@ def find_psf_center(img, verbose=True, nbit=10):
         
         xc = (profx*np.arange(sx)).sum() / profx.sum()
         yc = (profy*np.arange(sy)).sum() / profy.sum()
-                  
-        #pdb.set_trace()
-                                                   
+                                                                     
         if verbose:
-            print("it #%2d center = (%.2f, %.2f)" % (it+1, xc, yc))
-            
+            sys.stdout.write("\rit #%2d center = (%.2f, %.2f)" % (it+1, xc, yc))
+            sys.stdout.flush()
+    if verbose:
+        sys.stdout.write("\n")
+        sys.stdout.flush()
+        
     return (xc, yc)                                                  
+
+# =========================================================================
+# =========================================================================
+def find_fourier_origin(img, mykpo, m2pix, bmax=6.0):
+    ''' ------------------------------------------------------------
+    Finds the origin of the image that minimizes the amount of 
+    pointing-induced raw phase in the Fourier plane.
+
+    Parameters:
+    ----------
+    - img   : the initial 2D array
+    - mykpo : a KPO data structure
+    - m2pix : 1 m in the pupil -> m2pix pixels in the image (float)
+    - bmax  : the baseline beyond which Fourier phase is dropped (meters)
+
+    Remarks:
+    -------
+    Developed and implemented at the request of J. Kammerer to 
+    better handle the wide and not so contrasted binary scenario.
+
+    The *bmax* option is useful to filter out the phase information 
+    present at the longest baselines, which tends to be noisier.
+    ------------------------------------------------------------ '''
+
+    # Find image size
+    sz = img.shape[0]
+    if (sz != img.shape[1]):
+        raise UserWarning('Requires square image')
+        
+    # Generate Fourier plane ramps in u and v direction
+    uv = np.meshgrid((np.arange(sz//2+1)-sz//4)/float(sz),
+                     (np.arange(sz)-sz//2)/float(sz))
+    uv[0] = shift(uv[0])
+    uv[1] = shift(uv[1])
+        
+    # Integer pixel re-centering
+    img_filt = medfilt2d(img, 3)
+    (yc_int, xc_int) = np.unravel_index(np.argmax(img_filt), img_filt.shape)
+    img_cent = np.roll(np.roll(img, -yc_int, axis=0), -xc_int, axis=1)
+        
+    # Find Fourier plane coordinates which will be considered for the re-centering
+    uv_dist = np.sqrt(mykpo.kpi.UVC[:, 0]**2+mykpo.kpi.UVC[:, 1]**2)
+    uv_cutoff = np.where(uv_dist < float(r_cutoff))[0]
+    
+    # Find best sub-pixel shift
+    img_fft = np.fft.rfft2(img_cent)
+    best_xy_shift = leastsq(func=fourier_phase_resid_2d,
+                            x0=np.array([0., 0.]),
+                            args=(img_fft, m2pix, uv, uv_cutoff),
+                            ftol=1E-1)[0]
+    
+    # Return best shift
+    return [best_xy_shift[0]+xc_int, best_xy_shift[1]+yc_int]
+
+# =========================================================================
+# =========================================================================
+def fourier_phase_resid_2d(xy, img_fft, mykpo, m2pix, uv, uv_cutoff):
+    ''' ------------------------------------------------------------
+    Cost function used by find_fourier_origin() defined above.
+
+    Parameters:
+    ----------
+    - xy: tuple
+    ------------------------------------------------------------ '''
+    # Shift and inverse Fourier transform image
+    img_shifted = img_fft*np.exp(i2pi*(xy[0]*uv[0]+xy[1]*uv[1]))
+    img = np.abs(np.fft.fftshift(np.fft.irfft2(img_shifted)))
+        
+    # Extract Fourier plane phase
+    cvis = mykpo.extract_cvis_from_img(img, m2pix, method='LDFT1')
+        
+    # Return Fourier plane phase
+    return np.abs(np.angle(cvis[uv_cutoff]))
+
+    
+# =========================================================================
+# =========================================================================
+def determine_origin(img, mask=None, algo="BCEN", verbose=True):
+    ''' ------------------------------------------------------------
+    Determines the origin of the image, using among possible algorithms.
+
+    Parameters:
+    ----------
+    - img: the initial 2D array
+    - mask: an optional mask, same size as img (default = None)
+    - algo: a string describing the algorithm (default = "BCEN")
+      + "BCEN": centroid of the brightest speckle     (default)
+      + "FPNM": Fourier-phase norm minimization       (Jens)
+      + "COGI": center of gravity of image
+    - verbose: display some additional info (boolean, default=True)
+    ------------------------------------------------------------ '''
+    if algo.__class__ is not str:
+        print("")
+        algo = "BCEN"
+
+    if mask is not None:
+        img1 = img * mask
+    if "fp" in algo.lower():
+        print("Using Jens's algorithm. Not implemented yet")
+        (x0, y0) = find_psf_center(img, verbose, nbit=10)
+        
+    elif "cog" in algo.lower():
+        (x0, y0) = centroid(img, verbose)
+        
+    else:
+        (x0, y0) = find_psf_center(img, verbose, nbit=10)
+
+    return (x0, y0)
+        
+# =========================================================================
+# =========================================================================
+def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
+              verbose=True):
+    ''' ------------------------------------------------------------
+    Re-centering algorithm of a 2D image im0 for kernel-analysis
+
+    Parameters:
+    ----------
+    - im0: the initial 2D array
+    - mask: an optional mask same size as im0 (default = None)
+    - algo: centering algorithm (default = "BCEN")
+      + "BCEN": centroid of the brightest speckle     (default)
+      + "FPNM": Fourier-phase norm minimization       (Jens)
+      + "COGI": center of gravity of image
+    - subpix: sub-pixel recentering         (boolean, default=True)
+    - between: center in between 4 pixels   (boolean, default=False)
+    - verbose: display some additional info (boolean, default=True)
+
+    Remarks:
+    -------
+    - The optional mask is *not applied* to the final image.
+    - "between=True" effective only if "subpix=True"
+    ------------------------------------------------------------ '''
+
+    ysz, xsz = im0.shape
+
+    (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose)
+
+    dy, dx = (y0-ysz/2), (x0-xsz/2)
+    if between:
+        dy += 0.5
+        dx += 0.5
+
+    if verbose:
+        sys.stdout.write("centroid: dx=%+5.2f, dy=%+5.2f\n" % (dx, dy))
+        sys.stdout.flush()
+    
+    # integer pixel recentering first
+    im0 = np.roll(np.roll(im0, -int(dx), axis=1), -int(dy), axis=0)
+
+    if verbose:
+        sys.stdout.write("recenter: dx=%+5d, dy=%+5d\n" % (-int(dx), -int(dy)))
+        sys.stdout.flush()
+
+    # optional FFT-based subpixel recentering step
+    # requires insertion into a zero-padded square array (dim. power of two)
+    if subpix:
+        temp = np.max(im0.shape) # max dimension of image
+
+        for sz in 32 * 2**np.arange(6):
+            if sz >= temp: break
+        dz = sz/2.           # image half-size
+
+        xx,yy    = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
+        wx, wy = xx*np.pi/dz, yy*np.pi/dz 
+
+        dx -= np.int(dx)
+        dy -= np.int(dy)
+
+        if verbose:
+            sys.stdout.write("recenter: dx=%+5.2f, dy=%+5.2f\n" % (-dx, -dy))
+            sys.stdout.flush()
+        # insert image in zero-padded array (dim. power of two)
+        im  = np.zeros((sz, sz))
+        orix, oriy = (sz-xsz)/2, (sz-ysz)/2
+        im[oriy:oriy+ysz,orix:orix+xsz] = im0
+
+        slope  = shift(dx * wx + dy * wy)
+        offset = np.exp(1j*slope)
+        dummy  = np.abs(shift(ifft(offset * fft(shift(im)))))
+        im0    = dummy[oriy:oriy+ysz,orix:orix+xsz]
+    return im0
 
 # =========================================================================
 # =========================================================================
@@ -444,3 +643,123 @@ def compute_DFTM1(coords, m2pix, isz, inv=False, dprec=True):
             WW[i] = np.exp(-i2pi*(uvc[i,0] * xx.flatten() +
                                   uvc[i,1] * yy.flatten())/float(isz))
     return(WW)
+
+# =========================================================================
+# =========================================================================
+def create_discrete_model(apert, ppscale, step, binary=True):
+    '''------------------------------------------------------------------
+    Create the discrete (square grid) model of a provited aperture later
+    used to build a kernel model.
+    
+    Parameters:
+    ----------
+    - apert:   square array describing the aperture of an instrument
+    - ppscale: pupil pixel scale            (in meters)
+    - step:    the discrete model grid size (in meters)
+    - binary:  binary or grey model         (boolean, default=True)
+
+    Remark: As pointed out by Alban Ceau:
+    ------
+    
+    Regarding the choice of "step", it is advisable to ensure that once
+    projected in the pixel space of the "apert" array, the step does 
+    correspond to an *even and integer number of pixels*. This prevents 
+    subtle edge effects that may result in discrete models that do not 
+    fully reflect the symmetry properties of their original counterpart.
+
+    Using the pupil functions from the xaosim.pupil module to generate
+    the 2D apert array, make sure to use the between_pix flag to True
+    so that the array is indeed strictly symmetric.
+
+    Ex of reasonable use for the Subaru Telescope (diameter: 7.92 m)
+    >> PSZ = 792 # array size chosen for a nice 1 cm / pixel scale!
+    >> pup = xaosim.pupil.subaru((PSZ,PSZ), PSZ/2, True, True)
+    >> pscale = 7.92 / PSZ
+    >> model = xara.core.create_discrete_model(pup, pscale, 0.16, True)
+
+    To verify that your model reflects the symmetry properties of the
+    original aperture, look at the following superimposed plots:
+
+    >> plt.plot( model[:,0],  model[:,1], 'bo')
+    >> plt.plot(-model[:,0],  model[:,1], 'r.')
+
+    and:
+
+    >> plt.plot( model[:,0],  model[:,1], 'bo')
+    >> plt.plot(-model[:,0], -model[:,1], 'g.')
+
+    Any non perfectly overlapping point reveals a problem in the model, 
+    that requires some tweaking (including possibly manual editing).
+    ------------------------------------------------------------------
+
+    '''
+
+    blim = 0.8
+    thr = 5e-3
+    
+    PSZ = apert.shape[0]
+    nbs = int(PSZ / (step / ppscale)) # number of sample points across
+
+    if not (nbs % 2):
+        nbs += 1 # ensure odd number of samples (align with center!)
+
+    # ============================
+    #   pad the pupil array 
+    # ============================
+
+    PW      = int(step / ppscale)                # padding width
+    padap   = np.zeros((PSZ+2*PW, PSZ+2*PW))     # padded array
+    padap[PW:PW+PSZ, PW:PW+PSZ] = apert
+    DSZ     = PSZ/2 + PW
+
+    # ============================
+    #  re-grid the pupil -> pmask
+    # ============================
+    
+    pos = step * (np.arange(nbs) - nbs/2)
+    xgrid, ygrid = np.meshgrid(pos, pos)
+    pmask = np.zeros_like(xgrid)
+    
+    xpos = (xgrid / ppscale + DSZ).astype(int)
+    ypos = (ygrid / ppscale + DSZ).astype(int)
+
+    for jj in range(nbs):
+        for ii in range(nbs):
+            x0 = int(xpos[jj,ii])-PW/2
+            y0 = int(ypos[jj,ii])-PW/2
+            pmask[jj,ii] = padap[y0:y0+PW, x0:x0+PW].mean()
+
+    # ==========================
+    #  build the discrete model
+    # ==========================
+
+    xx = [] # discrete-model x-coordinate
+    yy = [] # discrete-model y-coordinate
+    tt = [] # discrete-model local transmission
+
+
+    if binary is True:
+        for jj in range(nbs):
+            for ii in range(nbs):
+                if (pmask[jj,ii] > blim):
+                    pmask[jj,ii] = 1.0
+                    xx.append(xgrid[jj,ii])
+                    yy.append(ygrid[jj,ii])
+                    tt.append(1.0)
+                else:
+                    pmask[jj,ii] = 0.0
+
+    else:       
+        for jj in range(nbs):
+            for ii in range(nbs):
+                if (pmask[jj,ii] > thr):
+                    xx.append(xgrid[jj,ii])
+                    yy.append(ygrid[jj,ii])
+                    tt.append(pmask[jj,ii])
+
+    xx = np.array(xx)
+    yy = np.array(yy)
+    tt = np.array(tt)
+
+    model = np.array([xx, yy, tt]).T
+    return model

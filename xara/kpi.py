@@ -75,10 +75,11 @@ class KPI(object):
                  or a python pickle as was the norm before that, or a text
                  file containing (x,y) coordinates.
 
-        - array: If no file name is provided, a 2D array containing the 
-                 (x,y) coordinates of a virtual interferometric aperture, 
-                 in meters is required. Not used if a valid file name was
-                 provided.
+        - array: If no file name is provided, a 2- or 3-column array 
+                 containing the (x,y) coordinates or the (x,y,t) coordinates
+                 (t being the transmission) of a virtual interferometric 
+                 aperture, in meters is required. Not used if a valid file 
+                 name was provided.
 
         Option:
         ------

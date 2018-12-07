@@ -220,7 +220,7 @@ class KPO():
 
         if m2pix != self.M2PIX:
             print("First time for m2pix = %.2f: " % (m2pix,))
-            print("LEDF2: Computing new auxilliary data...")
+            print("LDFT2: Computing new auxilliary data...")
         
             self.bl_v = np.unique(self.kpi.UVC[:,1])
             self.bl_u = np.unique(self.kpi.UVC[:,0])
@@ -382,7 +382,7 @@ class KPO():
         - target   : a 8 character string ID (default: get from fits file)
 
         - recenter : fine-centers the frame (default = True)
-        - wrad     : window radius in pixels (default is None)
+        - wrad     : Super-Gaussian window radius in pixels (default=None)
         - method   : string describing the extraction method. Default="LDFT1"
           + "LDFT1" : one sided DFT (recommended: most flexible)
           + "LDFT2" : two-sided DFT (FASTER, but for cartesian grids only)
@@ -449,7 +449,7 @@ class KPO():
     # =========================================================================
     # =========================================================================
     def __extract_KPD_NIRISS(self, fnames, target=None,
-                             recenter=True, wrad=None, method="LDFT1"):
+                             recenter=False, wrad=None, method="LDFT1"):
         
         nf = fnames.__len__()
         print("%d data fits files will be opened" % (nf,))
@@ -483,20 +483,31 @@ class KPO():
             nslice = hdul[0].header['NAXIS3']
 
         data = hdul[0].data.reshape((nslice, ysz, xsz))
-        
+
+        # ---- pre-compute super-gaussian mask if needed ----
+        if wrad is not None:
+            self.sgmask  = core.super_gauss(ysz, xsz, ysz/2, xsz/2, wrad)
+
         # ---- extract the Fourier data ----
         for jj in range(nslice):
-            #img = core.recenter(data[jj], sg_rad=100,
-            #                    verbose=False)[23:104,23:104]
-            img = data[jj]
+            if recenter is False:
+                img = data[jj]
+            else:
+                img = core.recenter(data[jj], sg_rad=100,
+                                    verbose=False)#[23:104,23:104]
+
+            if wrad is not None: # apply super-Gaussian apodization mask
+                img *= self.sgmask 
+            
             temp = self.extract_cvis_from_img(img, m2pix, method)
             cvis.append(temp)
-            kpdata.append(self.kpi.KPM.dot(np.angle(temp))) # the standard !!
-            #kpdata.append(self.kpi.KPM.dot(temp.imag)) # imaginary part?
-            print("File %s, slice %2d" % (fnames[ii], jj+1))
+            kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+
+            sys.sdtout.write("\rFile %s, slice %3d" % (fnames[ii], jj+1))
+            sys.stdout.flush()
             
-            mjdate.append(0.0)
-            detpa.append(0.0)
+            mjdate.append(0.0) # currently not available in sim data
+            detpa.append(0.0) # currently not available in sim data
         hdul.close()
 
         self.CWAVEL = cwavel
@@ -641,6 +652,8 @@ class KPO():
         index = 0
         for ii in range(nf):
             hdul = fits.open(fnames[ii])
+            sys.stdout.write("File %s" % (fnames[ii],))
+            sys.stdout.flush()
 
             nslice = 1
             if hdul[0].header['NAXIS'] == 3:
@@ -658,7 +671,8 @@ class KPO():
                 temp = self.extract_cvis_from_img(img, m2pix, method)
                 cvis.append(temp)
                 kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
-                print("File %s, slice %2d" % (fnames[ii], jj+1))
+                sys.stdout.write("slice %2d" % (jj+1,))
+                sys.stdout.flush()
                 
                 mjdate.append(hdul[0].header['MJD-OBS'])
             # --- detector position angle read globally ---
