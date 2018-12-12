@@ -274,8 +274,10 @@ def find_psf_center(img, verbose=True, nbit=10):
     signal = np.zeros_like(img)
     signal[mfilt > 0.1*mfilt.max()] = 1.0
 
+    i0 = float(nbit-1) / np.log(sx/2.0/5.0)
+
     for it in xrange(nbit):
-        sz = sx/2/(1.0+(0.1*sx/2*it/(4*nbit)))
+        sz = np.round(sx/2 * np.exp(-it/i0))
         x0 = np.max([int(0.5 + xc - sz), 0])
         y0 = np.max([int(0.5 + yc - sz), 0])
         x1 = np.min([int(0.5 + xc + sz), sx])
@@ -410,7 +412,7 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True):
         (x0, y0) = find_psf_center(img, verbose, nbit=10)
 
     return (x0, y0)
-        
+
 # =========================================================================
 # =========================================================================
 def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
@@ -450,10 +452,10 @@ def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
         sys.stdout.flush()
     
     # integer pixel recentering first
-    im0 = np.roll(np.roll(im0, -int(dx), axis=1), -int(dy), axis=0)
+    im0 = np.roll(np.roll(im0, -int(round(dx)), axis=1), -int(round(dy)), axis=0)
 
     if verbose:
-        sys.stdout.write("recenter: dx=%+5d, dy=%+5d\n" % (-int(dx), -int(dy)))
+        sys.stdout.write("recenter: dx=%+5d, dy=%+5d\n" % (-round(dx), -round(dy)))
         sys.stdout.flush()
 
     # optional FFT-based subpixel recentering step
@@ -468,8 +470,8 @@ def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
         xx,yy    = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
         wx, wy = xx*np.pi/dz, yy*np.pi/dz 
 
-        dx -= np.int(dx)
-        dy -= np.int(dy)
+        dx -= np.round(dx)
+        dy -= np.round(dy)
 
         if verbose:
             sys.stdout.write("recenter: dx=%+5.2f, dy=%+5.2f\n" % (-dx, -dy))

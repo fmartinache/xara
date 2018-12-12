@@ -448,6 +448,60 @@ class KPO():
     
     # =========================================================================
     # =========================================================================
+    def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
+                                 recenter=False, wrad=None, method="LDFT1"):
+        """ ----------------------------------------------------------------
+        Convenience function to handle the kernel processing of a single 
+        square frame not recognized as one of the available templates.
+
+        Parameters:
+        ----------
+        - frame: the 2D array image to process
+        - pscale: the image plate scale (in mas/pixels)
+        - cwavel: the central wavelength (in meters)
+
+        ---------------------------------------------------------------- """
+        
+        cvis   = [] # complex visibility
+        kpdata = [] # Kernel-phase data
+        detpa  = [] # detector position angle
+        mjdate = [] # modified Julian date
+
+        imsize = frame.shape[0]
+        m2pix  = core.mas2rad(pscale)*imsize/cwavel # Fourier scaling
+
+        if target is None:
+            target = "NONAME_TARGET"
+
+        self.sgmask = None
+        if wrad is not None:
+            self.sgmask  = core.super_gauss(ysz, xsz, ysz/2, xsz/2, wrad)
+            
+        if recenter is False:
+            img = frame
+        else:
+            img = core.recenter0(frame, mask=self.sgmask, algo="BCEN",
+                                 subpix=False, between=False, verbose=True)
+            
+        temp = self.extract_cvis_from_img(img, m2pix, method)
+        cvis.append(temp)
+        kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+
+        mjdate.append(0.0) # not available here
+        detpa.append(0.0) # not available here
+        
+        self.CWAVEL = cwavel
+        self.PSCALE = pscale
+        
+        self.TARGET.append(target)
+        self.CVIS.append(np.array(cvis))
+        self.KPDT.append(np.array(kpdata))
+        self.DETPA.append(np.array(detpa).flatten())
+        self.MJDATE.append(np.array(mjdate))
+        return
+
+    # =========================================================================
+    # =========================================================================
     def __extract_KPD_NIRISS(self, fnames, target=None,
                              recenter=False, wrad=None, method="LDFT1"):
         

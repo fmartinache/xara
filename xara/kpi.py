@@ -443,7 +443,7 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax = 8.0, figsize=(12,6), plot_redun = False,
+    def plot_pupil_and_uv(self, xymax = 4.0, figsize=(12,6), plot_redun = False,
                           cmap=cm.gray, ssize=12, lw=0, alpha=1.0):
         '''Nice plot of the pupil sampling and matching uv plane.
 
@@ -451,7 +451,7 @@ class KPI(object):
         Options:
         ----------
 
-        - xymax: radius of baseline plot in meters        (default=8.0)
+        - xymax: radius of pupil plot in meters           (default=4.0)
         - figsize: matplotlib figure size                 (default=(12,6))
         - plot_redun: bool add the redundancy information (default=False)
         - cmap: matplotlib colormap                       (default:cm.gray)
@@ -488,10 +488,8 @@ class KPI(object):
         if plot_redun:
             for i in range(self.nbuv):
                 ax1.text(self.uv[i,0]+dy, self.uv[i,1]+dy, 
-                         int(self.RED[i]), ha='center')
-        
-        ax0.axis('equal')
-        ax1.axis('equal')
+                         int(self.RED[i]), ha='center')        
+            ax1.axis('equal')
         plt.draw()
         f0.set_tight_layout(True)
         return f0
