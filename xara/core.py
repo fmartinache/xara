@@ -617,7 +617,7 @@ def compute_DFTM1(coords, m2pix, isz, inv=False, dprec=True):
     
     >> FF = xara.core.compute_DFTM1(np.unique(kpi.UVC), m2pix, isz)
 
-    >> FT = FF.dot(img.fnatten())
+    >> FT = FF.dot(img.flatten())
 
     This last command returns a 1D vector FT of the img.
     ------------------------------------------------------------------ '''

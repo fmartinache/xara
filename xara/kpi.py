@@ -164,8 +164,9 @@ class KPI(object):
         self.TRM  = np.ones(self.nbap, dtype=float)
         if self.VAC.shape[1] == 3:
             self.TRM = self.VAC[:,2]
-
         self.mask = self.VAC             # backward compatibility
+        if self.VAC.shape[1] == 2:
+            self.VAC = np.hstack((self.VAC, np.ones((self.nbap, 1))))
         
     # =========================================================================
     # =========================================================================

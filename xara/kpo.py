@@ -19,6 +19,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+
 import matplotlib.cm as cm
 from scipy.optimize import leastsq
 from scipy.sparse import diags
@@ -38,6 +39,8 @@ import gzip
 shift = np.fft.fftshift
 fft   = np.fft.fft2
 ifft  = np.fft.ifft2
+
+i2pi  = 1j * 2 * np.pi
 
 from scipy.interpolate import griddata
 
@@ -480,10 +483,34 @@ class KPO():
         if recenter is False:
             img = frame
         else:
-            img = core.recenter0(frame, mask=self.sgmask, algo="BCEN",
-                                 subpix=False, between=False, verbose=True)
-            
-        temp = self.extract_cvis_from_img(img, m2pix, method)
+            ysz, xsz = frame.shape
+            (x0, y0) = core.determine_origin(frame, mask=self.sgmask,
+                                             algo="BCEN", verbose=False)
+            dy, dx   = (y0-ysz/2), (x0-xsz/2)
+
+            #img = frame
+            # integer pixel recentering
+            #img = np.roll(np.roll(frame, -int(round(dx)), axis=1),
+            #              -int(round(dy)), axis=0)
+
+            # sub-pixel recentering left-over
+            #dx -= np.round(dx)
+            #dy -= np.round(dy)
+
+        # ----- complex visibility extraction -----
+        temp = self.extract_cvis_from_img(frame, m2pix, method)
+
+        # ---- sub-pixel recentering correction -----
+        if recenter is True:
+            uvc  = self.kpi.UVC * self.M2PIX
+            corr = np.exp(i2pi * uvc.dot(np.array([dx, dy])/float(ysz)))
+            #plt.figure()
+            #plt.plot(np.angle(temp), 'b')
+            #plt.plot(np.angle(corr), 'g')
+            #plt.plot(np.angle(temp * corr), 'r')
+            #pdb.set_trace()
+            temp *= corr
+        
         cvis.append(temp)
         kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
 
@@ -1004,7 +1031,10 @@ class KPO():
                 sim.append(temp.imag)
             else:
                 sim.append(temp)
-        return np.array(sim)
+        if nbd == 1:
+            return np.array(sim)[0]
+        else:
+            return np.array(sim)
         
     # =========================================================================
     # =========================================================================
@@ -1037,12 +1067,12 @@ class KPO():
         # ------------------
         # target of interest
         # ------------------
-        if self.KPDT[index].ndim == 2:
+        if (self.KPDT[index].ndim == 2) and (np.shape(self.KPDT[index])[0] > 1):
             model = np.mean(model, axis=0)
             error = np.mean(self.KPDT[index], axis=0) - clbrt - model
             uncrt = np.sqrt(np.var(self.KPDT[index], axis=0) + clerr**2)
         else:
-            error = self.KPDT[index] - clbrt - model
+            error = self.KPDT[index][0] - clbrt - model
             uncrt = None
 
         if uncrt is not None:
