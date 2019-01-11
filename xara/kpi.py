@@ -122,7 +122,7 @@ class KPI(object):
             print("Attempting to build KPI from array %s" % (fname,))
             try:
                 self.load_aperture_model(data=array)
-                self.rebuild_model(ndgt=ndgt)
+                self.rebuild_model(ndgt=ndgt, bfilter=bfilter)
                 self.name = ID
             except:
                 print("Problem using array %s" % (array,))
