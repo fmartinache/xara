@@ -61,7 +61,7 @@ class KPI(object):
     # =========================================================================
 
     def __init__(self, fname=None, array=None, ndgt=5,
-                 bfilter=None, ID=""):
+                 bmax=None, ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -83,9 +83,9 @@ class KPI(object):
 
         Option:
         ------
-        - ndgt    :  (integer) number of digits when rounding x,y baselines
-        - bfilter : if not None, a floating point number (0 < f < 1)
-        - ID      : (string) give the KPI structure a human readable ID
+        - ndgt: (integer) number of digits when rounding x,y baselines
+        - bmax: length of the max baseline kept in the model (in meters)
+        - ID  : (string) give the KPI structure a human readable ID
 
         Remarks:
         -------
@@ -95,6 +95,10 @@ class KPI(object):
         the coordinates should be given with a reasonably good number of 
         digits, typically 5 or 6, especially if the coordinates are located
         on a grid that is rotated by a non-trivial angle.
+
+        The bmax option makes it possible to filter out very noisy baselines
+        by eliminating them from the model. This results in less kernels but
+        improves the overall performance in the presence of noisy data.
         -------------------------------------------------------------------'''
 
         if fname is not None:
@@ -113,7 +117,7 @@ class KPI(object):
             else:
                 try:
                     self.load_aperture_model(fname=fname)
-                    self.rebuild_model(ndgt=ndgt, bfilter=bfilter)
+                    self.rebuild_model(ndgt=ndgt, bmax=bmax)
                 except:
                     print("Not a valid coordinate file")
             print("KPI data successfully loaded")
@@ -122,7 +126,7 @@ class KPI(object):
             print("Attempting to build KPI from array %s" % (fname,))
             try:
                 self.load_aperture_model(data=array)
-                self.rebuild_model(ndgt=ndgt, bfilter=bfilter)
+                self.rebuild_model(ndgt=ndgt, bmax=bmax)
                 self.name = ID
             except:
                 print("Problem using array %s" % (array,))
@@ -171,7 +175,7 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
     
-    def rebuild_model(self, ndgt=5, bfilter=None):
+    def rebuild_model(self, ndgt=5, bmax=None):
         ''' ------------------------------------------------------------------
         Builds or rebuilds the Fourier-phase model, from the information
         provided by the virtual aperture coordinate (VAC) table.
@@ -181,9 +185,8 @@ class KPI(object):
 
         - ndgt: the number of digits to round baselines (in meters)
 
-        - bfilter: a baseline filtering parameter: 
-          if not False, a floating point value (0 < val < 1) is expected.
-          Baselines larger than bfilter * bmax will be eliminated.
+        - bmax: a baseline filtering parameter (in meters): if not None, 
+          baselines larger than bmax are eliminated from the discrete model
 
         This latter option can be useful when working with saturated and/or
         undersampled data, to reject troublesome baselines.
@@ -237,20 +240,20 @@ class KPI(object):
 
         # 1.5. Special case: baseline filtering
         # -------------------------------------
-        if bfilter is not None:
+        if bmax is not None:
             uv_sampl = self.UVC.copy()   # copy previously identified baselines
             uvm = np.abs(self.UVC).max() # max baseline length
 
             blength = np.sqrt(np.abs(uv_sampl[:,0])**2 + 
                               np.abs(uv_sampl[:,1])**2)
             
-            bmax = blength.max()
-            keep = (blength < bfilter * bmax)
+            keep = (blength < bmax)
             self.UVC = uv_sampl[keep]
             self.nbuv = (self.UVC.shape)[0]
 
             print("%d baselines were preserved after filtering" % (self.nbuv,))
-
+            self.BMAX = bmax
+            
         # 2. compute baseline mapping model + redundancy
         # ----------------------------------------------
         self.BLM = np.zeros((self.nbuv, self.nbap), dtype=float) # matrix
@@ -528,6 +531,7 @@ class KPI(object):
         hdr['GRID']     = (False, "True for integer grid mode")
         hdr['G-STEP']   = (0.0,   "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
+        hdr.add_comment("Model filtering baselines > %.1f meters" % (self.BMAX))
         pri_hdu = fits.PrimaryHDU(header=hdr)
 
         # APERTURE HDU
@@ -564,7 +568,6 @@ class KPI(object):
         # -------------------------
         
         self.hdul = fits.HDUList([pri_hdu, tb1_hdu, tb2_hdu, kpm_hdu, blm_hdu])
-        #self.hdul.append(tb2_hdu)
 
         if fname is not None:
             self.hdul.writeto(fname, overwrite=True)

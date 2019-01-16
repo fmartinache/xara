@@ -19,6 +19,7 @@ from scipy.signal import medfilt2d as medfilt
 from scipy.special import j1
 from cameras import *
 from scipy.optimize import leastsq
+import time
 
 ''' ================================================================
     small tools and functions useful for the manipulation of
@@ -34,10 +35,15 @@ i2pi = 1j*2.0*np.pi
 
 # =========================================================================
 # =========================================================================
-
 def mas2rad(x):
     ''' Convenient little function to convert milliarcsec to radians '''
     return(x * 4.8481368110953599e-09) # = x*np.pi/(180*3600*1000)
+
+# =========================================================================
+# =========================================================================
+def rad2mas(x):
+    '''  convert radians to mas'''
+    return(x / 4.8481368110953599e-09) # = x / (np.pi/(180*3600*1000))
 
 # =========================================================================
 # =========================================================================
@@ -253,7 +259,7 @@ def centroid(image, threshold=0, binarize=False):
 
 # =========================================================================
 # =========================================================================
-def find_psf_center(img, verbose=True, nbit=10):                     
+def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):                     
     ''' Name of function self explanatory: locate the center of a PSF.
 
     ------------------------------------------------------------------
@@ -274,8 +280,13 @@ def find_psf_center(img, verbose=True, nbit=10):
     signal = np.zeros_like(img)
     signal[mfilt > 0.1*mfilt.max()] = 1.0
 
-    i0 = float(nbit-1) / np.log(sx/2.0/5.0)
+    i0 = float(nbit-1) / np.log(sx/wmin)
 
+    if visu:
+        plt.figure()
+        plt.ion()
+        plt.show()
+        
     for it in xrange(nbit):
         sz = np.round(sx/2 * np.exp(-it/i0))
         x0 = np.max([int(0.5 + xc - sz), 0])
@@ -285,11 +296,12 @@ def find_psf_center(img, verbose=True, nbit=10):
                                                                      
         mask = np.zeros_like(img)
         mask[y0:y1, x0:x1] = 1.0
-        
-        #plt.clf()
-        #plt.imshow((mfilt**0.2) * mask)
-        #plt.draw()
 
+        if visu:
+            plt.clf()
+            plt.imshow((mfilt**0.2) * mask)
+            plt.pause(0.1)
+            
         profx = (mfilt*mask*signal).sum(axis=0)
         profy = (mfilt*mask*signal).sum(axis=1)
         
@@ -381,7 +393,7 @@ def fourier_phase_resid_2d(xy, img_fft, mykpo, m2pix, uv, uv_cutoff):
     
 # =========================================================================
 # =========================================================================
-def determine_origin(img, mask=None, algo="BCEN", verbose=True):
+def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
     ''' ------------------------------------------------------------
     Determines the origin of the image, using among possible algorithms.
 
@@ -391,9 +403,9 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True):
     - mask: an optional mask, same size as img (default = None)
     - algo: a string describing the algorithm (default = "BCEN")
       + "BCEN": centroid of the brightest speckle     (default)
-      + "FPNM": Fourier-phase norm minimization       (Jens)
       + "COGI": center of gravity of image
     - verbose: display some additional info (boolean, default=True)
+    - wmin: size of the last centering window (in pixels)
     ------------------------------------------------------------ '''
     if algo.__class__ is not str:
         print("")
@@ -401,15 +413,12 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True):
 
     if mask is not None:
         img1 = img * mask
-    if "fp" in algo.lower():
-        print("Using Jens's algorithm. Not implemented yet")
-        (x0, y0) = find_psf_center(img, verbose, nbit=10)
         
-    elif "cog" in algo.lower():
+    if "cog" in algo.lower():
         (x0, y0) = centroid(img, verbose)
         
     else:
-        (x0, y0) = find_psf_center(img, verbose, nbit=10)
+        (x0, y0) = find_psf_center(img, verbose, nbit=10, wmin=wmin)
 
     return (x0, y0)
 

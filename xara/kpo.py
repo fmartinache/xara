@@ -58,7 +58,7 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    def __init__(self, fname=None, array=None, ndgt=5, bfilter=None, ID=""):
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -68,7 +68,7 @@ class KPO():
 
         # Default instantiation.
         self.kpi = kpi.KPI(fname=fname, array=array,
-                           ndgt=ndgt, bfilter=bfilter, ID=ID)
+                           ndgt=ndgt, bmax=bmax, ID=ID)
 
         self.TARGET = [] # source names
         self.CVIS   = [] # complex visibilities
@@ -600,7 +600,8 @@ class KPO():
     # =========================================================================
     def __extract_KPD_HST(self, fnames, target=None,
                           recenter=True, wrad=None, method="LDFT1"):
-        
+
+        # @FIXME!!
         nf = fnames.__len__()
         print("%d data fits files will be opened" % (nf,))
 
@@ -616,11 +617,18 @@ class KPO():
         cwavel = hdul[0].header['PHOTPLAM']*1e-10   # central wavelength
         imsize = 128                                # chop image
         m2pix  = core.mas2rad(pscale)*imsize/cwavel # Fourier scaling
+        tdiam  = 2.4                                # telescope diameter (m)
+        spix   = core.rad2mas(cwavel/tdiam)/pscale  # image sampling (pixels)
             
         if target is None:
             target = hdul[0].header['TARGNAME']    # Target name
 
         hdul.close()
+
+        # prepare the super-Gaussian apodization mask
+        self.sgmask = None
+        if wrad is not None:
+            self.sgmask  = core.super_gauss(ysz, xsz, ysz/2, xsz/2, wrad)
 
         for ii in range(nf):
             hdul = fits.open(fnames[ii])
@@ -633,7 +641,14 @@ class KPO():
                 
         # ---- extract the Fourier data ----
         for jj in range(nslice):
-            img = core.recenter(data[jj], sg_rad=50, verbose=False)
+            if recenter is True:
+                (x0, y0) = core.determine_origin(data[jj], mask=self.sgmask,
+                                                 algo="BCEN", verbose=False,
+                                                 wmin=2.0*spix)
+                dy, dx   = (y0-ysz/2), (x0-xsz/2)
+
+            
+            #img = core.recenter(data[jj], sg_rad=50, verbose=False)
             img = img[192:320,192:320] # from 512x512 -> 128x128
             temp = self.extract_cvis_from_img(img, m2pix, method)
             cvis.append(temp)
@@ -770,7 +785,8 @@ class KPO():
     # =========================================================================
     def __extract_KPD_Keck(self, fnames, target=None,
                            recenter=False, wrad=None, method="LDFT1"):
-        
+
+        # @FIXME: apdozation mask applied after recentering!
         nf = fnames.__len__()
         print("%d data fits files will be opened" % (nf,))
         
@@ -779,6 +795,7 @@ class KPO():
         detpa  = [] # detector position angle
         mjdate = [] # modified Julian date
 
+
         hdul   = fits.open(fnames[0])
         xsz    = hdul[0].header['NAXIS1']           # image x-size
         ysz    = hdul[0].header['NAXIS2']           # image y-size
@@ -786,11 +803,19 @@ class KPO():
         cwavel = hdul[0].header['CENWAVE'] * 1e-6   # central wavelength
         imsize = hdul[0].header['NAXIS1']           # image size (pixls)
         m2pix  = core.mas2rad(pscale)*imsize/cwavel # Fourier scaling
+        tdiam  = 10.9                               # telescope diameter (m)
+        spix   = core.rad2mas(cwavel/tdiam)/pscale  # image sampling (pixels)
         if target is None:
             target = hdul[0].header['OBJECT']      # Target name
         hdul.close()
 
+        # prepare the super-Gaussian apodization mask
+        self.sgmask = None
+        if wrad is not None:
+            self.sgmask  = core.super_gauss(ysz, xsz, ysz/2, xsz/2, wrad)
+
         index = 0
+
         for ii in range(nf):
             hdul = fits.open(fnames[ii])
 
@@ -801,13 +826,24 @@ class KPO():
 
             # ---- extract the Fourier data ----
             for jj in range(nslice):
-                if recenter:
-                    img = core.recenter(data[jj], sg_rad=50, verbose=False)
-                else:
-                    img = data[jj]
+                if recenter is True:
+                    (x0, y0) = core.determine_origin(data[jj], mask=self.sgmask,
+                                                     algo="BCEN", verbose=False,
+                                                     wmin=2.0*spix)
+                    dy, dx   = (y0-ysz/2), (x0-xsz/2)
 
                 index += 1
+                img = data[jj]
+                if self.sgmask is not None:
+                    img *= self.sgmask
+                
                 temp = self.extract_cvis_from_img(img, m2pix, method)
+                
+                if recenter is True: # centering error compensation on cvis
+                    uvc  = self.kpi.UVC * self.M2PIX
+                    corr = np.exp(i2pi * uvc.dot(np.array([dx, dy])/float(ysz)))
+                    temp *= corr
+
                 cvis.append(temp)
                 kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
                 print("File %s, slice %2d" % (fnames[ii], jj+1))
@@ -904,7 +940,7 @@ class KPO():
             self.hdul[0].header.add_comment("KP covariance extension included")
         except:
             print("No covariance added")
-
+            self.hdul[0].header.add_comment("No covariance information provided")
 
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
