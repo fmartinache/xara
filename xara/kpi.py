@@ -531,7 +531,11 @@ class KPI(object):
         hdr['GRID']     = (False, "True for integer grid mode")
         hdr['G-STEP']   = (0.0,   "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
-        hdr.add_comment("Model filtering baselines > %.1f meters" % (self.BMAX))
+        try:
+            test = self.BMAX
+            hdr.add_comment("Model filtering baselines > %.1f meters" % (self.BMAX))
+        except:
+            hdr.add_comment("Discrete model is complete")
         pri_hdu = fits.PrimaryHDU(header=hdr)
 
         # APERTURE HDU
