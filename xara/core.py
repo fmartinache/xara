@@ -424,8 +424,8 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
 
 # =========================================================================
 # =========================================================================
-def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
-              verbose=True):
+def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
+             verbose=True):
     ''' ------------------------------------------------------------
     Re-centering algorithm of a 2D image im0 for kernel-analysis
 
@@ -492,67 +492,9 @@ def recenter0(im0, mask=None, algo="BCEN", subpix=True, between=False,
 
         slope  = shift(dx * wx + dy * wy)
         offset = np.exp(1j*slope)
-        dummy  = np.abs(shift(ifft(offset * fft(shift(im)))))
+        dummy  = np.real(shift(ifft(offset * fft(shift(im)))))
         im0    = dummy[oriy:oriy+ysz,orix:orix+xsz]
     return im0
-
-# =========================================================================
-# =========================================================================
-def recenter(im0, sg_rad=25.0, verbose=True, nbit=10):
-    ''' ------------------------------------------------------------
-         The ultimate image centering algorithm... eventually...
-
-        im0:    of course, the array to be analyzed
-        sg_rad: super-Gaussian mask radius
-        bflag:  if passed as an argument, a "bad" boolean is returned
-        ------------------------------------------------------------ '''
-
-    szh = im0.shape[1] # horiz
-    szv = im0.shape[0] # vertic
-
-    temp = np.max(im0.shape) # max dimension of image
-
-    for sz in 64 * 2**np.arange(6):
-        if sz >= temp: break
-
-    dz = sz/2.           # image half-size
-
-    sgmask  = super_gauss(sz, sz, dz, dz, sg_rad)
-    x,y     = np.meshgrid(np.arange(sz)-dz, np.arange(sz)-dz)
-    wedge_x, wedge_y = x*np.pi/dz, y*np.pi/dz
-    offset  = np.zeros((sz, sz), dtype=complex) # to Fourier-center array
-
-    # insert image in zero-padded array (dim. power of two)
-    im  = np.zeros((sz, sz))
-    orih, oriv = (sz-szh)/2, (sz-szv)/2
-    im[oriv:oriv+szv,orih:orih+szh] = im0
-
-    (x0, y0) = find_psf_center(im, verbose, nbit)
-    
-    im -= np.median(im)
-
-    dx, dy = (x0-dz), (y0-dz)
-    im = np.roll(np.roll(im, -int(dx), axis=1), -int(dy), axis=0)
-
-    sys.stdout.write("\rrecenter: dx=%.2f, dy=%.2f" % (dx, dy))
-    sys.stdout.flush()
-    
-    dx -= np.int(dx)
-    dy -= np.int(dy)
-
-    temp   = im * sgmask
-    mynorm = temp.sum()
-
-    # array for Fourier-translation
-    dummy = shift(dx * wedge_x + dy * wedge_y)
-    offset.real, offset.imag = np.cos(dummy), np.sin(dummy)
-    dummy = np.abs(shift(ifft(offset * fft(shift(im*sgmask)))))
-
-    #dummy = im
-    # image masking, and set integral to right value
-    # dummy *= sgmask
-
-    return (dummy * mynorm / dummy.sum())
 
 # =========================================================================
 # =========================================================================
