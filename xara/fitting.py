@@ -16,7 +16,9 @@ from scipy.optimize import leastsq
 from core import *
 import sys
 from numpy.random import rand, randn
+import matplotlib.pyplot as plt
 
+plt.ion()
 # =========================================================================
 # =========================================================================
 def grid_src_KPD(mgrid, gscale, kpi, hdr, phi=None, deg=False):
@@ -382,28 +384,41 @@ def correlation_plot(kpo, params=[250., 0., 5.], plot_error=True, fig=None):
 # =========================================================================
 # =========================================================================
 
-def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0], 
+def nested(kpo, index=0, prange=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0], 
            npts=100, nstp = 3000, njmp=20, mode='kp'):
-    ''' Nested sampling routine.
-    -------------------------------------------------------------
-    - params [sepmin, sepmax, anglemin, anglemax, cmin, cmax]
-    - npts: number of points
-    - nstp: number of steps
-    - njmp: number of jumps
+    ''' Binary object nested sampling routine.
 
-    Call with argument mode = 'vis' to use vis fitting etc.
+    Adapted from the original function written by Ben Pope (circa 2013)
 
-    This is sufficiently modular that with a different loglikelihood function
+    Parameters:
+    ----------
+    - kpo    : a kernel-phase data structure
+    - index  : index of the dataset to use (default = 0)
+    - prange : range of parameter to be explored
+               expects: [sepmin, sepmax, anglemin, anglemax, cmin, cmax]
+    - npts: number of points (default = 100)
+    - nstp: number of steps  (default = 3000)
+    - njmp: number of jumps  (default = 20)
+    - mode: kernel-phase or visibility fit (default = 'kp')
+
+    Remarks:
+    -------
+    - Call with option mode='vis' to use vis fitting.
+
+    - This is sufficiently modular that with a different loglikelihood function
     you can use it straight out of the box.
 
-    Note: this function requires properly calibrated observables.
+    Note: this function requires calibrated observables.
     ------------------------------------------------------------- '''
-    kpo.__kpd__ = np.median(self.KPDT[0], axis=0) # hidden variables!
-    kpo.__kpe__ = np.std(self.KPDT[0], axis=0)    # hidden variables!
-    
+    kpo.__kpd__ = np.median(kpo.KPDT[index], axis=0) # hidden variables!
+    kpo.__kpe__ = np.std(kpo.KPDT[index], axis=0)    # hidden variables!
+
+    if not kpo.__kpe__.any():
+        kpo.__kpe__ += 0.2#np.std(kpo.__kpd__) # to avoid div by 0
+        print("no valid error bars")
     plt.figure(0, figsize=(10,5))
 
-    [smin, smax, amin, amax, cmin, cmax] = params
+    [smin, smax, amin, amax, cmin, cmax] = prange
 
     # Generate npts active points using different priors
     angs = amin + (amax-amin) * rand(npts)               # Uniform
@@ -419,7 +434,7 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
     progress = refrate # counter for displays
 
     for k in range(npts): # calculate likelihood
-        L[k] = loglikelihood(kpo, seps[k], angs[k], cons[k], mode=mode)
+        L[k] = loglikelihood(kpo, index, seps[k], angs[k], cons[k], mode=mode)
 
     for j in range(nstp): # loop for iterations
         # store rejected binary parameters and re-sort L
@@ -448,7 +463,7 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
 
         starts, starta, startc = seps[choose],angs[choose],cons[choose]
         news, newa, newc = starts, starta, startc
-        newl = loglikelihood(kpo, starts, starta, startc, mode=mode)
+        newl = loglikelihood(kpo, index, starts, starta, startc, mode=mode)
         
         while l < njmp: # random walk to generate a new active point
 
@@ -456,7 +471,7 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
             trys = news + jumps * randn()
             tryc = newc + jumpc * randn()
 
-            like = loglikelihood(kpo, trys, trya, tryc, mode=mode)
+            like = loglikelihood(kpo, index, trys, trya, tryc, mode=mode)
             
             # accept and move on
             if (like > L[0]) and (smin < trys < smax) and (cmin < tryc < cmax): 
@@ -505,7 +520,7 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
             plt.xlabel('Separation (mas)')
             plt.ylabel('Contrast Ratio')
             plt.title('Active Points')
-            plt.draw()
+            plt.pause(0.01)
             
             progress = 0
         else:
@@ -560,21 +575,23 @@ def nested(kpo, params=[30.0, 250.0, 0.0, 360.0, 1.5, 5.0],
 # =========================================================================
 # =========================================================================
 
-def loglikelihood(kpo, sep, angle, contrast, mode='kp'):
+def loglikelihood(kpo, index, sep, angle, contrast, mode='kp'):
     '''Define the chi-squared function - omits logpre!
     Takes a structure a and parameters sep, angle and contrast.
     Pass the mode 'vis' to use visibility fitting'''
 
     if mode == 'kp':
-        modl_ker = kpo.kpd_binary_model([sep, angle, contrast], 0, "KERNEL")[0]
+        modl_ker = kpo.kpd_binary_model([sep, angle, contrast],
+                                        index, "KERNEL")[0]
         chisquared = np.sum(((modl_ker - kpo.__kpd__)/(kpo.__kpe__))**2)
         
     elif mode == 'vis':
-        test = kpo.kpd_binary_model([sep, angle, contrast], 0, "AMPLI")[0]**2
+        test = kpo.kpd_binary_model([sep, angle, contrast],
+                                    index, "AMPLI")[0]**2
         chisquared = np.sum(((test - kpo.v2)/(kpo.vis_error))**2)
         
     else:
-        print 'Invalid mode'
+        raise Exception("Invalid mode for loglikelihood")
 
     #logpre = a.nkphi*np.sum(-1/2 * np.log(2*np.pi) - np.log(a.kpe))
     #logpre = 0 
