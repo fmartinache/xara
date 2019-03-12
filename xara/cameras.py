@@ -34,8 +34,8 @@ def get_keck_keywords(hdr):
         # P.A. of the frame (deg) (formula from M. Ireland)
         'orient' : 360+hdr['PARANG']+hdr['ROTPPOSN']-hdr['EL']-hdr['INSTANGL']
         }
-    print "parang = %.2f, rotpposn = %.2f, el=%.2f, instangl=%.2f" % \
-        (hdr['PARANG'],hdr['ROTPPOSN'],hdr['EL'],hdr['INSTANGL'])
+    print("parang = %.2f, rotpposn = %.2f, el=%.2f, instangl=%.2f" % \
+        (hdr['PARANG'],hdr['ROTPPOSN'],hdr['EL'],hdr['INSTANGL']))
     return data
 
 # =========================================================================

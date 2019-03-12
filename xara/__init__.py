@@ -39,7 +39,8 @@ import sys
 from scipy.optimize import leastsq
 from scipy.interpolate import griddata
 
-from core import *
+from . import core
+from .core import *
 
 shift = np.fft.fftshift
 fft   = np.fft.fft2
@@ -47,13 +48,13 @@ ifft  = np.fft.ifft2
 
 dtor = np.pi/180.0
 
-import kpi
-from kpi import *
+from . import kpi
+from .kpi import *
 
-import kpo
-from kpo import *
+from . import kpo
+from .kpo import *
 
-version_info = (1,0,0)
+version_info = (1,1,0)
 __version__ = '.'.join(str(c) for c in version_info)
 
 # -------------------------------------------------

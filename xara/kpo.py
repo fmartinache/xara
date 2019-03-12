@@ -44,10 +44,9 @@ i2pi  = 1j * 2 * np.pi
 
 from scipy.interpolate import griddata
 
-import core
-import kpi
+from . import core
+from . import kpi
 
-import pdb
 
 class KPO():
     ''' Class used to manipulate multiple Ker-phase datasets

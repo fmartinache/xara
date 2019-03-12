@@ -46,7 +46,6 @@ import pickle
 import os
 import sys
 import gzip
-import pdb
 
 class KPI(object):
     ''' Fundamental kernel-phase relations
@@ -234,7 +233,7 @@ class KPI(object):
             for j in range(nby):
                 uv_sel = np.append(uv_sel, [[a[i],c[j]]], axis=0)
 
-        self.nbuv = np.shape(uv_sel)[0]/2 # actual number of distinct uv points
+        self.nbuv = np.shape(uv_sel)[0]//2 # actual number of distinct uv points
         self.UVC   = uv_sel[:self.nbuv,:]  # discard second half (symmetric)
         print("%d distinct baselines were identified" % (self.nbuv,))
 

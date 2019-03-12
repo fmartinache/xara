@@ -13,11 +13,11 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pdb
+#import pdb
 import sys
 from scipy.signal import medfilt2d as medfilt
 from scipy.special import j1
-from cameras import *
+#from cameras import *
 from scipy.optimize import leastsq
 import time
 
@@ -287,7 +287,7 @@ def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
         plt.ion()
         plt.show()
         
-    for it in xrange(nbit):
+    for it in range(nbit):
         sz = np.round(sx/2 * np.exp(-it/i0))
         x0 = np.max([int(0.5 + xc - sz), 0])
         y0 = np.max([int(0.5 + yc - sz), 0])

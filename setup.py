@@ -1,7 +1,9 @@
+import sys
+
 from setuptools import setup
 
 setup(name='xara',
-      version='1.0.0', # defined in the __init__ module
+      version='1.1.0', # defined in the __init__ module
       description='Package for eXtreme Angular Resolution Astronomy',
       url='http://github.com/fmartinache/xara',
       author='Frantz Martinache',
@@ -11,7 +13,7 @@ setup(name='xara',
           'Development Status :: 3 - Alpha',
           'Intended Audience :: Professional Astronomers',
           'Topic :: High Angular Resolution Astronomy :: Interferometry',
-          'Programming Language :: Python :: 2.7'
+          'Programming Language :: Python :: 3.6'
       ],
       packages=['xara'],
       install_requires=[

@@ -13,7 +13,7 @@
 
 import numpy as np
 from scipy.optimize import leastsq
-from core import *
+from .core import *
 import sys
 from numpy.random import rand, randn
 import matplotlib.pyplot as plt
