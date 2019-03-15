@@ -487,7 +487,7 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
             sys.stdout.flush()
         # insert image in zero-padded array (dim. power of two)
         im  = np.zeros((sz, sz))
-        orix, oriy = (sz-xsz)/2, (sz-ysz)/2
+        orix, oriy = (sz-xsz)//2, (sz-ysz)//2
         im[oriy:oriy+ysz,orix:orix+xsz] = im0
 
         slope  = shift(dx * wx + dy * wy)
@@ -675,11 +675,11 @@ def create_discrete_model(apert, ppscale, step, binary=True):
     
     xpos = (xgrid / ppscale + DSZ).astype(int)
     ypos = (ygrid / ppscale + DSZ).astype(int)
-
+    
     for jj in range(nbs):
         for ii in range(nbs):
-            x0 = int(xpos[jj,ii])-PW/2
-            y0 = int(ypos[jj,ii])-PW/2
+            x0 = int(xpos[jj,ii])-PW//2
+            y0 = int(ypos[jj,ii])-PW//2
             pmask[jj,ii] = padap[y0:y0+PW, x0:x0+PW].mean()
 
     # ==========================
