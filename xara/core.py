@@ -599,6 +599,64 @@ def compute_DFTM1(coords, m2pix, isz, inv=False, dprec=True):
 
 # =========================================================================
 # =========================================================================
+def uv_phase_regrid_matrix(UVD, UVS, rad):
+    '''------------------------------------------------------------------
+    !!EXPERIMENTAL FUNCTION!!
+
+    Not sure how useful this will eventually turn however numerical experiments
+    have led me to write this in attempting to diagnostic systematic errors so
+    I include it here.
+
+    Matrix to extract a smaller number of kernels from a dense model
+
+    Provided with two sets of UV coordinates (one dense and one sparse), builds
+    a matrix that regrids use the dense model to interpolate the sparse one.
+
+    Parameters:
+    ---------- 
+    - UVD: dense  UV-coordinates array (np.array([nbuv, 2]) in meters
+    - UVS: sparse UV-coordinates array (np.array([nbuv, 2]) in meters
+    - rad: interpolation radius (in meters) 
+
+    Example: 
+    -------
+    - UVS: sparse (36x2) UV coverage of a 9H mask (one sample per sub-aperture)
+    - UVD: dense (1350x2) UV coverage of the same mask (12 samples per sub-apt)
+    - rad: 0.42 (slightly larger than the hole diameter)
+
+    Returns a 36x1350 matrix that averages the phase measured in the F plane
+    with the dense model, so as to produce an estimate for the sparse one.
+    ------------------------------------------------------------------ '''
+
+    uvc1 = UVS.copy()
+    uvc2 = UVD.copy()
+
+    nuv1 = UVS.shape[0]
+    nuv2 = UVD.shape[0]
+
+    uvc2 = np.concatenate([uvc2, -uvc2], axis=0) # required to avoid edge effect
+    
+    GG = np.zeros((nuv1, nuv2))
+    for ii in range(nuv1):
+        uu, vv = uvc1[ii]
+        aa = np.where((np.abs(uvc2[:,1] - vv) <= rad) *
+                      (np.abs(uvc2[:,0]- uu) <= rad))
+
+        for jj in range(len(aa[0])):
+            index = aa[0][jj]
+            if index >= nuv2:
+                index -= nuv2
+                GG[ii, index] = -1.0 # neg phase at uv opposite!
+            else:
+                GG[ii, index] = 1.0
+
+    WW = np.abs(GG).sum(axis=1)
+    #print(WW)
+    GG = np.diag(1/WW).dot(GG)
+    return GG
+
+# =========================================================================
+# =========================================================================
 def create_discrete_model(apert, ppscale, step, binary=True):
     '''------------------------------------------------------------------
     Create the discrete (square grid) model of a provited aperture later
