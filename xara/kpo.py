@@ -109,6 +109,15 @@ class KPO():
             self.CWAVEL = hdul[0].header['CWAVEL']
         except:
             print("CWAVEL was not set")
+
+        # covariance?
+        # -----------
+        try:
+            test = hdul['KP_COV']
+            self.kp_cov = test.data
+            print("Covariance data available and loaded")
+        except:
+            print("No covariance data available")
         # end
         # ---
         hdul.close()
