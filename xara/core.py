@@ -13,7 +13,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-#import pdb
+import pdb
 import sys
 from scipy.signal import medfilt2d as medfilt
 from scipy.special import j1
@@ -657,8 +657,9 @@ def uv_phase_regrid_matrix(UVD, UVS, rad):
 
 # =========================================================================
 # =========================================================================
-def create_discrete_model(apert, ppscale, step, binary=True):
+def create_discrete_model(apert, ppscale, step, binary=True, tmin=0.8):
     '''------------------------------------------------------------------
+
     Create the discrete (square grid) model of a provited aperture later
     used to build a kernel model.
     
@@ -668,9 +669,10 @@ def create_discrete_model(apert, ppscale, step, binary=True):
     - ppscale: pupil pixel scale            (in meters)
     - step:    the discrete model grid size (in meters)
     - binary:  binary or grey model         (boolean, default=True)
+    - tmin:    cut-off transmission         (0<tmin<1, default=80%)
 
-    Remark: As pointed out by Alban Ceau:
-    ------
+    Remark #1: As pointed out by Alban Ceau:
+    ---------
     
     Regarding the choice of "step", it is advisable to ensure that once
     projected in the pixel space of the "apert" array, the step does 
@@ -701,16 +703,24 @@ def create_discrete_model(apert, ppscale, step, binary=True):
 
     Any non perfectly overlapping point reveals a problem in the model, 
     that requires some tweaking (including possibly manual editing).
+
+    To fix such models, you can give the symetrizes_model() function
+    defined below a shot.
+
+    Remark #2: 
+    ---------
+    
+    The minimum transmission value "tmin" is used to decide where to
+    chop parts of the aperture that don't make it inside the
+    model. Depending on the case (binary or grey model), the threshold
+    has to be adjusted.
+
     ------------------------------------------------------------------
-
     '''
-
-    blim = 0.8
-    thr = 5e-3
     
     PSZ = apert.shape[0]
     nbs = int(PSZ / (step / ppscale)) # number of sample points across
-
+    
     if not (nbs % 2):
         nbs += 1 # ensure odd number of samples (align with center!)
 
@@ -727,7 +737,7 @@ def create_discrete_model(apert, ppscale, step, binary=True):
     #  re-grid the pupil -> pmask
     # ============================
     
-    pos = step * (np.arange(nbs) - nbs/2)
+    pos = step * (np.arange(nbs) - nbs//2)
     xgrid, ygrid = np.meshgrid(pos, pos)
     pmask = np.zeros_like(xgrid)
     
@@ -752,7 +762,7 @@ def create_discrete_model(apert, ppscale, step, binary=True):
     if binary is True:
         for jj in range(nbs):
             for ii in range(nbs):
-                if (pmask[jj,ii] > blim):
+                if (pmask[jj,ii] > tmin):
                     pmask[jj,ii] = 1.0
                     xx.append(xgrid[jj,ii])
                     yy.append(ygrid[jj,ii])
@@ -763,7 +773,7 @@ def create_discrete_model(apert, ppscale, step, binary=True):
     else:       
         for jj in range(nbs):
             for ii in range(nbs):
-                if (pmask[jj,ii] > thr):
+                if (pmask[jj,ii] > tmin):
                     xx.append(xgrid[jj,ii])
                     yy.append(ygrid[jj,ii])
                     tt.append(pmask[jj,ii])
@@ -774,3 +784,51 @@ def create_discrete_model(apert, ppscale, step, binary=True):
 
     model = np.array([xx, yy, tt]).T
     return model
+
+# =========================================================================
+# =========================================================================
+def symetrizes_model(model, axis=0, cut = 1e-1):
+    ''' -------------------------------------------------------------------
+    Returns a symetrized version of the original pupil model.
+
+    This is what you use to automatically fix a model coming out of the
+    create_discrete_model() function.
+
+    Parameters:
+    ----------
+    - model: a 3-column (x,y,t) discrete pupil model
+    - axis: the direction along which the model is to be symmetrized 
+      + 0 => horizontal
+      + 1 => vertical
+    - cut: distance criterion, should be < than the grid step
+
+    Remark:
+    ------
+
+    When attempting to "fix" the grid model, one could add or remove
+    sub-apertures. Here we only remove sub-apertures!
+    ------------------------------------------------------------------- '''
+    
+    flag = []
+    nap = model.shape[0]
+    
+    if axis > 1:
+        axis = 0
+        print("warning: axis can only be 0 or 1 for a 2D array!")
+        print("assuming L/R symmetry (axis=0)")
+
+    if axis == 0:
+        ss, ns = 0, 1
+    else:
+        ss, ns = 1, 0
+    for ii in range(nap):
+        tmp1 = np.abs(model[:,ss] + model[ii,ss]) < cut
+        tmp2 = np.abs(model[:,ns] - model[ii,ns]) < cut
+        test = (tmp1 * tmp2).sum()
+        if test < 1.0:
+            print("problematic sub-aperture #%d flagged!" %(ii,))
+            flag.append(ii)
+
+    new_model = np.delete(model, flag, axis=0)
+            
+    return new_model
