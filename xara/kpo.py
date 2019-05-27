@@ -287,7 +287,7 @@ class KPO():
             print("Done!")
             
         myft_v = self.FF.dot(image.flatten())
-        myft_v /= (np.abs(myft_v)).max() / self.kpi.TRM.sum()
+        myft_v *= self.kpi.TRM.sum() / image.sum()
         return(myft_v)
     
     # =========================================================================
