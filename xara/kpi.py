@@ -281,14 +281,6 @@ class KPI(object):
         # The choice is up to the user... but the simplest is to
         # discard the first column, that is, use the first aperture
         # as a reference?
-
-        '''
-        #self.TFM = self.BLM.dot(np.diag(self.TRM))        # transmission
-
-        self.TFM = self.BLM.copy()
-        self.TFM = self.TFM[:,1:]                         # cf. explanation
-        self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
-        '''
         
         self.TFM = self.BLM.copy()
         self.TFM = self.TFM[:,1:]                         # cf. explanation
@@ -373,8 +365,7 @@ class KPI(object):
         self.BLM = hdulist['BLM-MAT'].data
 
         if ap_flag:
-            self.TFM = self.BLM.dot(np.diag(self.TRM[:-1]))   # transmission
-            self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
+            self.TFM = np.dot(np.diag(1./self.RED), self.BLM) # redundancy
 
         self.nbuv = self.UVC.shape[0]
         self.nbkp = self.KPM.shape[0]
@@ -520,7 +511,7 @@ class KPI(object):
         
         uv1 = fits.Column(name='UUC', format='D', array=self.UVC[:,0])
         uv2 = fits.Column(name='VVC', format='D', array=self.UVC[:,1])
-        uv3 = fits.Column(name='RED', format='I', array=self.RED)
+        uv3 = fits.Column(name='RED', format='D', array=self.RED)
 
         # make up a primary HDU
         # ---------------------
@@ -551,7 +542,7 @@ class KPI(object):
         tb2_hdu = fits.BinTableHDU.from_columns([uv1, uv2, uv3])
         tb2_hdu.header['TTYPE1'] = ('UUC', 'Baseline u coordinate (in meters)')
         tb2_hdu.header['TTYPE2'] = ('VVC', 'Baseline v coordinate (in meters)')
-        tb2_hdu.header['TTYPE3'] = ('RED', 'Baseline redundancy (integer)')
+        tb2_hdu.header['TTYPE3'] = ('RED', 'Baseline redundancy (float)')
         tb2_hdu.header['EXTNAME'] = 'UV-PLANE'
 
         # KER-MAT HDU
