@@ -438,7 +438,7 @@ class KPI(object):
     # =========================================================================
 
     def plot_pupil_and_uv(self, xymax = 4.0, figsize=(12,6), plot_redun = False,
-                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0):
+                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0, marker='s'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
         --------------------------------------------------------------------
@@ -451,7 +451,8 @@ class KPI(object):
         - cmap: matplotlib colormap                       (default:cm.gray)
         - ssize: symbol size                              (default=12)
         - lw:  line width for symbol outline              (default=0)
-        - alpha: gamma                                    (default=1)
+        - alpha: gamma (transparency)                     (default=1)
+        - maker: matplotlib marker for sub-aperture       (default='s')
         - -------------------------------------------------------------------
         '''
 
@@ -461,16 +462,16 @@ class KPI(object):
 
         s1, s2 = ssize**2, (ssize/2)**2
         ax0.scatter(self.VAC[:,0], self.VAC[:,1], s=s1, c=self.VAC[:,2],
-                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
+                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         ax0.axis([-xymax, xymax, -xymax, xymax], aspect='equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")
 
         ax1 = plt.subplot(122)
         ax1.scatter(-self.UVC[:,0], -self.UVC[:,1], s=s2, c=self.RED,
-                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
+                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         ax1.scatter(self.UVC[:,0], self.UVC[:,1], s=s2, c=self.RED,
-                    cmap=cmap, alpha=alpha, marker='s', lw=lw)
+                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         
         ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax], aspect='equal')
         ax1.set_xlabel("Fourier u-coordinate (meters)")

@@ -74,7 +74,7 @@ class KPO():
         self.KPDT   = [] # kernel-phase data
         self.DETPA  = [] # detector position angles
         self.MJDATE = [] # data modified Julian date
-        self.M2PIX = -1  # used to save time in later computations
+        self.M2PIX  = -1 # used to save time in later computations
         
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
@@ -457,6 +457,47 @@ class KPO():
         self.MJDATE.append(np.array(mjdate))
         return
     
+    # =========================================================================
+    # =========================================================================
+    def extract_KPD_single_cube(self, cube, pscale, cwavel, target=None,
+                                 recenter=False, wrad=None, method="LDFT1"):
+        """ ----------------------------------------------------------------
+        Convenience function to handle the kernel processing of a cube of
+        square frames that does not fit the available templates.
+
+        Parameters:
+        ----------
+        - cube  : the 2D array image to process
+        - pscale: the image plate scale (in mas/pixels)
+        - cwavel: the central wavelength (in meters)
+        ---------------------------------------------------------------- """
+        nfrm = cube.shape[0] # number of frames in the cube
+        sys.stdout.write("\n")
+        for ii in range(nfrm):
+            sys.stdout.write("\rCube slice %3d / %3d" % (ii+1, nfrm))
+            sys.stdout.flush()
+            self.extract_KPD_single_frame(cube[ii], pscale, cwavel, target=target,
+                                          recenter=recenter, wrad=wrad, method=method)
+
+        # at this point, the structures need to be reorganized
+        # this is a bit ugly and I expect I'll have to change a lot of things
+        target = self.TARGET[0]
+        detpa  = np.array(self.DETPA)[:,0]
+        mjdate = np.array(self.MJDATE)[:,0]
+        kpdata = np.array(self.KPDT)[:,0,:]
+        cvis   = np.array(self.CVIS)[:,0,:]
+
+        self.TARGET = []
+        self.TARGET.append(target)
+        self.CVIS = []
+        self.CVIS.append(cvis)
+        self.KPDT = []
+        self.KPDT.append(kpdata)
+        self.DETPA = []
+        self.DETPA.append(detpa)
+        self.MJDATE = []
+        self.MJDATE.append(mjdate)
+        return
     # =========================================================================
     # =========================================================================
     def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
@@ -988,7 +1029,7 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
-    def kpd_binary_match_map(self, gsz, gstep, kp_signal, cref=0.01):
+    def kpd_binary_match_map(self, gsz, gstep, kp_signal, cref=0.01, norm=False):
         """ Produces a 2D-map showing where the best binary fit occurs
         
         Computes the dot product between the kp_signal and a grid (x,y) grid of 
@@ -1000,11 +1041,14 @@ class KPO():
         - gstep     : grid step in mas
         - kp_signal : the kernel-phase vector
         - cref      : reference contrast (optional, default = 0.01)
-
+        - norm      : normalizes the map (boolean, default = False)
         Remarks:
         -------
         In the high-contrast regime, the amplitude is proportional to the
         companion brightness ratio.
+
+        With the map normalized, an estimate of the contrast at the
+        brightest correlation peak can directly be read.
         ---------------------------------------------------------------
         """
         mgrid = np.zeros((gsz, gsz))
@@ -1017,6 +1061,8 @@ class KPO():
         kpmap = self.kpi.KPM.dot(np.angle(cvis))
         crit  = kpmap.T.dot(kp_signal)
 
+        if norm is not False:
+            crit /= kp_signal.dot(kp_signal) * cref
         return(crit.reshape(gsz, gsz))
     
     # =========================================================================
