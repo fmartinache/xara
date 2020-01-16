@@ -64,7 +64,8 @@ def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,
     el1[dist1 < 1] = 1.0
     el2[dist2 < 1] = 1.0
 
-    rim = cont * (el1 * (1 - el2)) # inner rim before rotation
+    rim = (el1 * (1 - el2)) # inner rim before rotation
+    rim *= cont / rim.sum()
     rim[gsz//2, gsz//2] = 1.0      # adding the star     
     rim = rotate(rim, -PA, reshape=False, order=0)
     return rim
