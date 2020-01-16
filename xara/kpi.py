@@ -462,7 +462,8 @@ class KPI(object):
 
         s1, s2 = ssize**2, (ssize/2)**2
         ax0.scatter(self.VAC[:,0], self.VAC[:,1], s=s1, c=self.VAC[:,2],
-                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
+                    cmap=cmap, alpha=alpha, marker=marker, lw=lw,
+                    vmin=0.0, vmax=1.0)
         ax0.axis([-xymax, xymax, -xymax, xymax], aspect='equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")

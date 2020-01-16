@@ -17,8 +17,58 @@ from .core import *
 import sys
 from numpy.random import rand, randn
 import matplotlib.pyplot as plt
+from scipy.ndimage import rotate
 
 plt.ion()
+
+# =========================================================================
+# =========================================================================
+def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,
+                 inc=60, PA=310):
+    
+    """ Parametric model of the inner edge of a circumstellar disk.
+    ------------------------------------------------------------------
+
+    Returns the square (gsz x gsz) grid size model of the vertical rim
+    of a circumstellar disk of radius *rad*, height *thick* seen at
+    inclination *inc* and for the position angle *PA* surrounding a
+    bright star (luminosity contrast disk/contrast *cont*).
+
+    Parameters:
+    ----------
+    - gsz    : grid size in pixels (int)
+    - gstep  : grid step size in mas (float)
+    - height : vertical inner rim height in mas (float)
+    - rad    : radius of the gap (in mas). 
+    - cont   : disk/star contrast ratio (0 < cont < 1)
+    - inc    : inclination of the disk (in deg)
+    - PA     : disk position angle E. of N. (in deg)
+
+    Credit:
+    ------
+    Written by Axel Lapel (2020)
+    ------------------------------------------------------------------ """
+    
+    xx, yy = np.meshgrid(gstep * (np.arange(gsz) - gsz/2),
+                         gstep * (np.arange(gsz) - gsz/2))
+    
+    inc *= np.pi / 180 # convert inclination to radians
+    happ_thick = height * np.sin(inc) / 2 # half apparent thickness
+
+    dist1 = np.hypot((yy - happ_thick) / (rad * np.cos(inc)), xx / rad)
+    dist2 = np.hypot((yy + happ_thick) / (rad * np.cos(inc)), xx / rad)
+
+    el1 = np.zeros_like(dist1)
+    el2 = np.zeros_like(dist2)
+
+    el1[dist1 < 1] = 1.0
+    el2[dist2 < 1] = 1.0
+
+    rim = cont * (el1 * (1 - el2)) # inner rim before rotation
+    rim[gsz//2, gsz//2] = 1.0      # adding the star     
+    rim = rotate(rim, -PA, reshape=False, order=0)
+    return rim
+
 # =========================================================================
 # =========================================================================
 def grid_src_KPD(mgrid, gscale, kpi, hdr, phi=None, deg=False):
@@ -599,3 +649,154 @@ def loglikelihood(kpo, index, sep, angle, contrast, mode='kp'):
     like = -chisquared/2
     
     return like
+
+# =========================================================================
+# =========================================================================
+
+def bin_chi2_crit(ker0, kpi, sep, pang, cont, wl, ker_err=None):
+    ''' -----------------------------------------------------------
+    Computes the value of the chi2 binary kernel model associated to
+    a KPI data structure for a specific (sep, pang, con) location.
+
+    Parameters:
+    ----------
+    - ker0    : the experimental kernel vector
+    - kpi     : the relevant kernel-phase data structure
+    - sep     : the angular separation (in mas)
+    - pang    : the position angle (in degrees)
+    - cont    : the contrast (primary/secondary)
+    - wl      : the wavelength (in meters)
+    - ker_err : the uncertainty associated to ker0 (optional)
+    ----------------------------------------------------------- '''
+    
+    p1 = np.array([sep, pang, cont])
+    cvis = cvis_binary(
+        kpi.UVC[:,0], kpi.UVC[:,1], wl, p1)
+
+    ker1 = kpi.KPM.dot(np.angle(cvis))
+    if ker_err is None:
+        chi2 = np.sum(np.abs(ker1 - ker0)**2)
+    else:
+        chi2 = np.sum(np.abs(ker1 - ker0)**2 / ker_err**2)
+    return chi2 / (len(ker0) - 3)
+
+
+# =========================================================================
+# =========================================================================
+
+def binary_chi2_volume(ker0, wl, kpi, seps, pangs, cons, ker_err=None):
+    ''' -----------------------------------------------------------
+    computes a 2D slice of kernel-phase binary chi2 for one fixed 
+    parameter as a function of the two other ones.
+
+    Parameters:
+    ----------
+    - ker0    : the experimental kernel vector
+    - wl      : the wavelength (in meters)
+    - kpi     : the relevant kernel-phase data structure
+    - seps    : an array of separations (in mas)
+    - pangs   : an array of position angles (in degrees)
+    - cons    : an array of contrasts (primary/secondary)
+    - ker_err : the uncertainty associated to ker0 (optional) '''
+
+    nseps = len(seps)
+    ncons = len(cons)
+    npangs = len(pangs)
+
+    mychi2vol = np.zeros((nseps, ncons, npangs))
+    sys.stdout.write("chi2 volume computation!\n")
+    sys.stdout.flush()
+    
+    for kk, sep1 in enumerate(seps):
+        for ii, pang1 in enumerate(pangs):
+            for jj, con1 in enumerate(cons):
+                    mychi2vol[kk,ii,jj] = bin_chi2_crit(
+                        ker0, kpi, sep1, pang1, con1, wl, ker_err=ker_err)
+                    sys.stdout.write("\rsep = %6.2f mas, PA = %5.1f deg, con=%.2f" % (sep1, pang1, con1))
+                    sys.stdout.flush()
+    # ---------------------------------------------
+    if mychi2vol is not None:
+        return mychi2vol
+    else:
+        return 0
+                
+    
+# =========================================================================
+# =========================================================================
+
+def binary_chi2_slice(ker0, wl, kpi, ker_err=None,
+                      seps=None, pangs=None, cons=None,
+                      sep=None,  pang=None,  con=None):
+    ''' -----------------------------------------------------------
+    computes a 2D slice of kernel-phase binary chi2 for one fixed 
+    parameter as a function of the two other ones.
+
+    Parameters:
+    ----------
+    - ker0    : the experimental kernel vector
+    - wl      : the wavelength (in meters)
+    - kpi     : the relevant kernel-phase data structure
+    - ker_err : the uncertainty associated to ker0 (optional)
+
+    - seps    : an array of separations (in mas)
+    - pangs   : an array of position angles (in degrees)
+    - cons    : an array of contrasts (primary/secondary)
+
+    - sep     : a fixed separation (in mas)
+    - pang    : a fixed position angle (in degrees)
+    - con     : a fixed contrast (primary/seconday)
+
+    Remarks:
+    -------
+    To return something useful, if provided with one unique fixed 
+    parameter value (ex: sep), the function expects to be provided
+    with arrays for the other two parameters (ex: pangs, cons)
+    ---------------------------------------------------------- '''
+
+    if sep is not None: # !! PANG - CON map !!
+        if cons is not None and pangs is not None:
+            ncons = len(cons)
+            npangs = len(pangs)
+            mychi2map = np.zeros((ncons, npangs))
+
+            for jj, con1 in enumerate(cons):
+                for ii, pang1 in enumerate(pangs):
+                    mychi2map[jj,ii] = bin_chi2_crit(
+                        ker0, kpi, sep, pang1, con1, wl, ker_err=ker_err)            
+        else:
+            print("incomplete argument list for a (pang - con) chi2 map")
+            print("provide arrays of position angles and contrasts")
+    # ---------------------------------------------
+    if pang is not None: # !! SEP - CON map !!
+        if cons is not None and seps is not None:
+            ncons = len(cons)
+            nseps = len(seps)
+            mychi2map = np.zeros((ncons, nseps))
+
+            for jj, con1 in enumerate(cons):
+                for ii, sep1 in enumerate(seps):
+                    mychi2map[jj,ii] = bin_chi2_crit(
+                        ker0, kpi, sep1, pang, con1, wl, ker_err=ker_err)            
+        else:
+            print("incomplete argument list for a (sep - con) chi2 map")
+            print("provide arrays of angular separations and contrasts")
+    # ---------------------------------------------
+    if con is not None: # !! SEP - PANG map !!
+        if pangs is not None and seps is not None:
+            nseps = len(seps)
+            npangs = len(pangs)
+            mychi2map = np.zeros((npangs, nseps))
+
+            for jj, pang1 in enumerate(pangs):
+                for ii, sep1 in enumerate(seps):
+                    mychi2map[jj,ii] = bin_chi2_crit(
+                        ker0, kpi, sep1, pang1, con, wl, ker_err=ker_err)            
+        else:
+            print("incomplete argument list for a (sep - pang) chi2 map")
+            print("provide arrays of angular separations and position angles")
+    # ---------------------------------------------
+    if mychi2map is not None:
+        return mychi2map
+    else:
+        return 0
+
