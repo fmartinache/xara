@@ -52,11 +52,11 @@ def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,
     xx, yy = np.meshgrid(gstep * (np.arange(gsz) - gsz/2),
                          gstep * (np.arange(gsz) - gsz/2))
     
-    inc *= np.pi / 180 # convert inclination to radians
-    happ_thick = height * np.sin(inc) / 2 # half apparent thickness
+    inc1 = inc * np.pi / 180 # convert inclination to radians
+    happ_thick = height * np.sin(inc1) / 2 # half apparent thickness
 
-    dist1 = np.hypot((yy - happ_thick) / (rad * np.cos(inc)), xx / rad)
-    dist2 = np.hypot((yy + happ_thick) / (rad * np.cos(inc)), xx / rad)
+    dist1 = np.hypot((yy - happ_thick) / (rad * np.cos(inc1)), xx / rad)
+    dist2 = np.hypot((yy + happ_thick) / (rad * np.cos(inc1)), xx / rad)
 
     el1 = np.zeros_like(dist1)
     el2 = np.zeros_like(dist2)
