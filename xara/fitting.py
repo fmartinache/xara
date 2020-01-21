@@ -51,12 +51,17 @@ def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,
     
     xx, yy = np.meshgrid(gstep * (np.arange(gsz) - gsz/2),
                          gstep * (np.arange(gsz) - gsz/2))
-    
+
+    PA1 = PA * np.pi / 180 # convert position angle to radians
     inc1 = inc * np.pi / 180 # convert inclination to radians
+
+    xx1 = xx * np.cos(PA1) + yy * np.sin(PA1)
+    yy1 = yy * np.cos(PA1) - xx * np.sin(PA1)
+
     happ_thick = height * np.sin(inc1) / 2 # half apparent thickness
 
-    dist1 = np.hypot((yy - happ_thick) / (rad * np.cos(inc1)), xx / rad)
-    dist2 = np.hypot((yy + happ_thick) / (rad * np.cos(inc1)), xx / rad)
+    dist1 = np.hypot((yy1 - happ_thick) / (rad * np.cos(inc1)), xx1 / rad)
+    dist2 = np.hypot((yy1 + happ_thick) / (rad * np.cos(inc1)), xx1 / rad)
 
     el1 = np.zeros_like(dist1)
     el2 = np.zeros_like(dist2)
@@ -67,7 +72,6 @@ def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,
     rim = (el1 * (1 - el2)) # inner rim before rotation
     rim *= cont / rim.sum()
     rim[gsz//2, gsz//2] = 1.0      # adding the star     
-    rim = rotate(rim, -PA, reshape=False, order=0)
     return rim
 
 # =========================================================================
