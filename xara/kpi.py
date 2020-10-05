@@ -2,7 +2,7 @@
           XARA: a package for eXtreme Angular Resolution Astronomy
     --------------------------------------------------------------------
     ---
-    xara is a python module to create, and extract Fourier-phase data 
+    xara is a python module to create, and extract Fourier-phase data
     structures, using the theory described in the two following papers:
     - Martinache, 2010, ApJ, 724, 464.
     - Martinache, 2013, PASP, 125, 422.
@@ -35,8 +35,6 @@
     - KPM = Ker(TFM)
     -------------------------------------------------------------------- '''
 
-#!/usr/bin/env python
-
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -46,6 +44,7 @@ import pickle
 import os
 import sys
 import gzip
+import pdb
 
 class KPI(object):
     ''' Fundamental kernel-phase relations
@@ -141,7 +140,7 @@ class KPI(object):
 
     # =========================================================================
     # =========================================================================
-    
+
     def load_aperture_model(self, fname=None, data=None):
         ''' ------------------------------------------------------------------
         Create a virtual aperture model from the coordinates provided in a
@@ -152,28 +151,29 @@ class KPI(object):
         - col #3: virtual aperture transmission (0 < t <= 1) (optional)
         ------------------------------------------------------------------ '''
         if fname is not None:
-            self.VAC = 1.0 * np.loadtxt(fname) # sub-Ap. coordinate files
-            self.name = fname.split('/')[-1] # use file name for KPI name
+            self.VAC = 1.0 * np.loadtxt(fname)  # sub-Ap. coordinate files
+            self.name = fname.split('/')[-1]    # use file name for KPI name
         else:
-            try:
+            if data is not None:
                 self.VAC = data
                 self.name = "no_name"
-            except:
+            else:
                 print("Data is unavailable")
                 return None
-            
-        self.nbap  = self.VAC.shape[0]      # number of sub-Ap
 
-        self.TRM  = np.ones(self.nbap, dtype=float)
+        self.nbap = self.VAC.shape[0]      # number of sub-Ap
+
+        self.TRM = np.ones(self.nbap, dtype=float)
+
         if self.VAC.shape[1] == 3:
-            self.TRM = self.VAC[:,2]
+            self.TRM = self.VAC[:, 2]
         self.mask = self.VAC             # backward compatibility
         if self.VAC.shape[1] == 2:
             self.VAC = np.hstack((self.VAC, np.ones((self.nbap, 1))))
-        
+
     # =========================================================================
     # =========================================================================
-    
+
     def rebuild_model(self, ndgt=5, bmax=None):
         ''' ------------------------------------------------------------------
         Builds or rebuilds the Fourier-phase model, from the information
@@ -184,8 +184,12 @@ class KPI(object):
 
         - ndgt: the number of digits to round baselines (in meters)
 
-        - bmax: a baseline filtering parameter (in meters): if not None, 
+        - bmax: a baseline filtering parameter (in meters): if not None,
           baselines larger than bmax are eliminated from the discrete model
+
+        - rmin: a baseline filtering parameter (float): if not None,
+          baselines with a redundancy less or equal to rmin are eliminated
+          (EXPERIMENTAL FEATURE)
 
         This latter option can be useful when working with saturated and/or
         undersampled data, to reject troublesome baselines.
@@ -197,124 +201,161 @@ class KPI(object):
         # if the array is redundant, there will be plenty of duplicates.
         # --------------------------------------------------------------
 
-        nbap = self.nbap                # shorthand
-        uvx = np.zeros(nbap * (nbap-1)) # prepare empty arrays to store
-        uvy = np.zeros(nbap * (nbap-1)) # the baselines
-        bgn = np.zeros(nbap * (nbap-1)) # and their "gain"
-        
-        k = 0 # index for possible combinations (k = f(i,j))
-        
-        uvi = np.zeros(nbap * (nbap-1), dtype=int) # arrays to store the possible
-        uvj = np.zeros(nbap * (nbap-1), dtype=int) # combinations k=f(i,j) !!
+        nbap = self.nbap                 # shorthand
+        uvx = np.zeros(nbap * (nbap-1))  # prepare empty arrays to store
+        uvy = np.zeros(nbap * (nbap-1))  # the baselines
+        bgn = np.zeros(nbap * (nbap-1))  # and their "gain"
 
+        k = 0  # index for possible combinations (k = f(i,j))
 
-        for i in range(nbap):     # do all the possible combinations of
-            for j in range(nbap): # sub-apertures
+        uvi = np.zeros(nbap * (nbap-1), dtype=int)  # arrays to store possible
+        uvj = np.zeros(nbap * (nbap-1), dtype=int)  # combinations k=f(i,j) !!
+
+        for i in range(nbap):      # do all the possible combinations of
+            for j in range(nbap):  # sub-apertures
                 if i != j:
-                    uvx[k] = self.VAC[i,0] - self.VAC[j,0]
-                    uvy[k] = self.VAC[i,1] - self.VAC[j,1]
-                    bgn[k] = (self.VAC[i,2] * self.VAC[j,2])
+                    uvx[k] = self.VAC[i, 0] - self.VAC[j, 0]
+                    uvy[k] = self.VAC[i, 1] - self.VAC[j, 1]
+                    bgn[k] = (self.VAC[i, 2] * self.VAC[j, 2])
                     # ---
                     uvi[k], uvj[k] = i, j
-                    k+=1
+                    k += 1
 
         # search for distinct uv components along the u-axis
         temp   = np.sort(uvx)
         mark   = np.append(True, np.diff(temp))
         a      = temp[mark > prec]
         nbx    = a.shape[0]                # number of distinct u-components
-        uv_sel = np.zeros((0,2))           # array for "selected" baselines
-        
+        uv_sel = np.zeros((0, 2))          # array for "selected" baselines
+
         for i in range(nbx):     # identify distinct v-coords and fill uv_sel
             b = np.where(np.abs(uvx - a[i]) <= prec)
             c = np.unique(np.round(uvy[b], ndgt))
 
-            nby = np.shape(c)[0] # number of distinct v-compoments
+            nby = np.shape(c)[0]  # number of distinct v-compoments
             for j in range(nby):
-                uv_sel = np.append(uv_sel, [[a[i],c[j]]], axis=0)
+                uv_sel = np.append(uv_sel, [[a[i], c[j]]], axis=0)
 
-        self.nbuv = np.shape(uv_sel)[0]//2 # actual number of distinct uv points
-        self.UVC   = uv_sel[:self.nbuv,:]  # discard second half (symmetric)
+        self.nbuv = np.shape(uv_sel)[0]//2  # actual # of distinct uv points
+        self.UVC = uv_sel[:self.nbuv, :]  # discard second half (symmetric)
         print("%d distinct baselines were identified" % (self.nbuv,))
+        self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         # 1.5. Special case: baseline filtering
         # -------------------------------------
         if bmax is not None:
             uv_sampl = self.UVC.copy()   # copy previously identified baselines
-            uvm = np.abs(self.UVC).max() # max baseline length
+            # uvm = np.abs(self.UVC).max() # max baseline length
 
-            blength = np.sqrt(np.abs(uv_sampl[:,0])**2 + 
-                              np.abs(uv_sampl[:,1])**2)
-            
+            blength = np.sqrt(np.abs(uv_sampl[:, 0])**2 +
+                              np.abs(uv_sampl[:, 1])**2)
+
             keep = (blength < bmax)
             self.UVC = uv_sampl[keep]
             self.nbuv = (self.UVC.shape)[0]
 
             print("%d baselines were preserved after filtering" % (self.nbuv,))
             self.BMAX = bmax
-            
+            self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+
         # 2. compute baseline mapping model + redundancy
         # ----------------------------------------------
-        self.BLM = np.zeros((self.nbuv, self.nbap), dtype=float) # matrix
-        self.RED = np.zeros(self.nbuv, dtype=float)             # Redundancy
+        self.BLM = np.zeros((self.nbuv, self.nbap), dtype=float)  # matrix
+        self.RED = np.zeros(self.nbuv, dtype=float)               # Redundancy
 
         for i in range(self.nbuv):
-            a=np.where((np.abs(self.UVC[i,0]-uvx) <= prec) *
-                       (np.abs(self.UVC[i,1]-uvy) <= prec))
-            
-            self.BLM[i, uvi[a]] +=  bgn[a]
-            self.BLM[i, uvj[a]] += -bgn[a]
-            self.RED[i]          = np.sum(bgn[a])
+            a = np.where((np.abs(self.UVC[i, 0] - uvx) <= prec) *
+                         (np.abs(self.UVC[i, 1] - uvy) <= prec))
+
+            self.BLM[i, uvi[a]] += bgn[a]
+            self.BLM[i, uvj[a]] -= bgn[a]
+            self.RED[i] = np.sum(bgn[a])
             '''
             self.BLM[i, uvi[a]] +=  1.0
             self.BLM[i, uvj[a]] += -1.0
             self.RED[i]          = np.size(a)
             '''
-            
+
         # 3. Determine the kernel-phase relations
         # ----------------------------------------
 
+        self.compute_KPM()
+        # # backward compatibility
+        # # ----------------------
+        self.backward_compatibility_patch()
+
+    # =========================================================================
+    # =========================================================================
+
+    def filter_baselines(self, criterion=None):
+        ''' ------------------------------------------------------------------
+        Filter (ie eliminate) baseline based on a criterion mask
+        The criterion must be met for the baseline to be preserved!
+
+        Parameters:
+        ----------
+        - criterion: an array of boolean of size *nbuv* (before filtering)
+        ------------------------------------------------------------------ '''
+        if criterion is not None:
+            uv_sampl = self.UVC.copy()
+            self.UVC = uv_sampl[criterion]
+            self.BLM = self.BLM[criterion, :]
+            self.RED = self.RED[criterion]
+            self.nbuv = self.RED.size
+            self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+            self.compute_KPM()
+            self.backward_compatibility_patch()
+
+    # =========================================================================
+    # =========================================================================
+
+    def compute_KPM(self,):
+        ''' ------------------------------------------------------------------
+        Compute the kernel-phase matrix for the model
+
+        Takes the BLM + RED to build TFM and then computes the KPM.
+
+        Remarks:
+        -------
+        - Was isolated from rebuild_model() to make it easier to maintain.
+        - the computation of KPM can be written in a more concise manner!
+        ------------------------------------------------------------------ '''
         # One sub-aperture is taken as reference: the corresponding
         # column of the transfer matrix is discarded. TFM is now a
         # (nbuv) x (nbap - 1) array.
-        
-        # The choice is up to the user... but the simplest is to
-        # discard the first column, that is, use the first aperture
-        # as a reference?
-        
+
+        # the first column of TFM is discarded: the first aperture
+        # of the model is used as a reference.
+
         self.TFM = self.BLM.copy()
-        self.TFM = self.TFM[:,1:]                         # cf. explanation
-        self.TFM = np.dot(np.diag(1./self.RED), self.TFM) # redundancy
-        
-        #U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
-        U, S, Vh = np.linalg.svd(self.BLM[:,1:].T, full_matrices=1)
+        self.TFM = self.TFM[:, 1:]                         # cf. explanation
+        self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
+
+        # U, S, Vh = np.linalg.svd(self.TFM.T, full_matrices=1)
+        U, S, Vh = np.linalg.svd(self.BLM[:, 1:].T, full_matrices=1)
 
         S1 = np.zeros(self.nbuv)
-        S1[0:nbap-1] = S
+        S1[0:self.nbap-1] = S
 
-        self.nbkp  = np.size(np.where(abs(S1) < 1e-3)) # number of Ker-phases
-        KPhiCol     = np.where(abs(S1) < 1e-3)[0]
-        self.KPM    = np.zeros((self.nbkp, self.nbuv)) # allocate the array
-        
+        self.nbkp = np.size(np.where(abs(S1) < 1e-3))  # number of Ker-phases
+        KPhiCol   = np.where(abs(S1) < 1e-3)[0]
+        self.KPM  = np.zeros((self.nbkp, self.nbuv))  # allocate the array
+
         for i in range(self.nbkp):
-            self.KPM[i,:] = (Vh)[KPhiCol[i],:]
+            self.KPM[i, :] = (Vh)[KPhiCol[i], :]
 
-        self.KPM    = self.KPM.dot(np.diag(self.RED))
-        
+        self.KPM = self.KPM.dot(np.diag(self.RED))
+
         print('10 first singular values for this array:')
-        print(np.round(S[:10], ndgt))
+        print(np.round(S[:10], 5))
         self.summary_properties()
-        
-        # backward compatibility
-        # ----------------------
-        self.backward_compatibility_patch()
-        
+
     # =========================================================================
     # =========================================================================
 
     def backward_compatibility_patch(self,):
         ''' ------------------------------------------------------------------
-        Some aliases are defined here to provide compatibility with 
+        Some aliases are defined here to provide compatibility with
         software using an earlier version of this library.
         ------------------------------------------------------------------ '''
         self.mask   = self.VAC
@@ -333,9 +374,11 @@ class KPI(object):
         - fname: the file name. e.g.: "my_data.fits"
         ------------------------------------------------------------------ '''
         hdulist = fits.open(fname)
-        try: self.name = hdulist['PRIMARY'].header['KPI-ID']
-        except: self.name = fname.split('/')[-1]
-        
+        try:
+            self.name = hdulist['PRIMARY'].header['KPI-ID']
+        except KeyError:
+            self.name = fname.split('/')[-1]
+
         # ------------------------------------
         #    APERTURE is an OPTIONAL HDU
         # ------------------------------------
@@ -343,17 +386,17 @@ class KPI(object):
         try:
             tmp = hdulist['APERTURE'].data
             self.VAC = np.array([tmp['XXC'], tmp['YYC']]).T
-            self.nbap   = self.VAC.shape[0]
+            self.nbap = self.VAC.shape[0]
             try:
                 self.TRM = np.array(tmp['TRM'])
-            except:
-                self.TRM  = np.ones(self.nbap, dtype=float)
+            except KeyError:
+                self.TRM = np.ones(self.nbap, dtype=float)
             self.VAC = np.array([tmp['XXC'], tmp['YYC'], tmp['TRM']]).T
             self.mask = self.VAC
-        except:
+        except KeyError:
             print('APERTURE HDU not available')
             ap_flag = False
-        
+
         # ------------------------------------
         #    UV-PLANE is an REQUIRED HDU
         # ------------------------------------
@@ -363,9 +406,11 @@ class KPI(object):
 
         self.KPM = hdulist['KER-MAT'].data
         self.BLM = hdulist['BLM-MAT'].data
+        self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         if ap_flag:
-            self.TFM = np.dot(np.diag(1./self.RED), self.BLM) # redundancy
+            self.TFM = np.diag(1./self.RED).dot(self.BLM[:, 1:])
+            #self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
 
         self.nbuv = self.UVC.shape[0]
         self.nbkp = self.KPM.shape[0]
@@ -507,12 +552,12 @@ class KPI(object):
 
         # prepare the data for fits table format
         # --------------------------------------
-        xy1 = fits.Column(name='XXC', format='D', array=self.VAC[:,0])
-        xy2 = fits.Column(name='YYC', format='D', array=self.VAC[:,1])
+        xy1 = fits.Column(name='XXC', format='D', array=self.VAC[:, 0])
+        xy2 = fits.Column(name='YYC', format='D', array=self.VAC[:, 1])
         trm = fits.Column(name='TRM', format='D', array=self.TRM)
-        
-        uv1 = fits.Column(name='UUC', format='D', array=self.UVC[:,0])
-        uv2 = fits.Column(name='VVC', format='D', array=self.UVC[:,1])
+
+        uv1 = fits.Column(name='UUC', format='D', array=self.UVC[:, 0])
+        uv2 = fits.Column(name='VVC', format='D', array=self.UVC[:, 1])
         uv3 = fits.Column(name='RED', format='D', array=self.RED)
 
         # make up a primary HDU
@@ -534,10 +579,12 @@ class KPI(object):
         # ------------
         tb1_hdu = fits.BinTableHDU.from_columns([xy1, xy2, trm])
         tb1_hdu.header['EXTNAME'] = 'APERTURE'
-        tb1_hdu.header['TTYPE1'] = ('XXC', 'Virtual aperture x-coord (in meters)')
-        tb1_hdu.header['TTYPE2'] = ('YYC', 'Virtual aperture y-coord (in meters)')
-        tb1_hdu.header['TTYPE3'] = ('TRM',
-                                    'Virtual aperture transmission (0 < t <=1)')
+        tb1_hdu.header['TTYPE1'] = (
+            'XXC', 'Virtual aperture x-coord (in meters)')
+        tb1_hdu.header['TTYPE2'] = (
+            'YYC', 'Virtual aperture y-coord (in meters)')
+        tb1_hdu.header['TTYPE3'] = (
+            'TRM', 'Virtual aperture transmission (0 < t <=1)')
 
         # UV-PLANE HDU
         # ------------
@@ -555,8 +602,8 @@ class KPI(object):
 
         # BLM-MAT HDU
         # -----------
-        BLM = (np.diag(self.RED).dot(self.TFM))#.astype(np.int)
-        blm_hdu = fits.ImageHDU(BLM)
+        # BLM = (np.diag(self.RED).dot(self.TFM))#.astype(np.int)
+        blm_hdu = fits.ImageHDU(self.BLM)
         blm_hdu.header.add_comment("Baseline Mapping Matrix")
         blm_hdu.header['EXTNAME'] = 'BLM-MAT'
 
@@ -591,21 +638,22 @@ class KPI(object):
             return 0
         else:
             
-            try: 
-                data = {'name'   : self.name,
-                        'mask'   : self.VAC,
-                        'uv'     : self.UVC,
-                        'TFM'    : self.TFM,
-                        'KerPhi' : self.KPM,
-                        'RED'    : self.RED}
-            except:
+            try:
+                data = {'name': self.name,
+                        'mask': self.VAC,
+                        'uv': self.UVC,
+                        'TFM': self.TFM,
+                        'KerPhi': self.KPM,
+                        'RED': self.RED}
+            except AttributeError:
                 print("KerPhase_Relation data structure is incomplete")
                 print("File %s wasn't saved!" % (fname,))
                 return None
             # -------------
-            try: myf = gzip.GzipFile(fname, "wb")
+            try:
+                myf = gzip.GzipFile(fname, "wb")
             except:
-                print("File %s cannot be created."+
+                print("File %s cannot be created." +
                       " KerPhase_Relation data structure wasn't saved." % (
                           fname,))
                 return None
