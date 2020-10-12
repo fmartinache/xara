@@ -39,19 +39,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from astropy.io import fits
-import copy
 import pickle
-import os
-import sys
 import gzip
-import pdb
+
 
 class KPI(object):
     ''' Fundamental kernel-phase relations
 
     -----------------------------------------------------------------------
-    This object condenses all the knowledge about a given instrument pupil 
-    geometry into a series of arrays useful for kernel-phase analysis as 
+    This object condenses all the knowledge about a given instrument pupil
+    geometry into a series of arrays useful for kernel-phase analysis as
     well as for wavefront sensing.
     ----------------------------------------------------------------------- '''
 
@@ -564,14 +561,15 @@ class KPI(object):
         # ---------------------
         hdr = fits.Header()
         hdr['SOFTWARE'] = 'XARA'
-        hdr['KPI-ID']   = self.name[:8]
-        hdr['GRID']     = (False, "True for integer grid mode")
-        hdr['G-STEP']   = (0.0,   "Used for integer grid mode")
+        hdr['KPI-ID'] = self.name[:8]
+        hdr['GRID'] = (False, "True for integer grid mode")
+        hdr['G-STEP'] = (0.0,   "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
         try:
             test = self.BMAX
-            hdr.add_comment("Model filtering baselines > %.1f meters" % (self.BMAX))
-        except:
+            hdr.add_comment(
+                "Model filtering baselines > %.1f meters" % (self.BMAX))
+        except AttributeError:
             hdr.add_comment("Discrete model is complete")
         pri_hdu = fits.PrimaryHDU(header=hdr)
 
@@ -609,22 +607,22 @@ class KPI(object):
 
         # compile HDU list and save
         # -------------------------
-        
+
         self.hdul = fits.HDUList([pri_hdu, tb1_hdu, tb2_hdu, kpm_hdu, blm_hdu])
 
         if fname is not None:
             self.hdul.writeto(fname, overwrite=True)
         return(self.hdul)
-    
+
     # =========================================================================
     # =========================================================================
 
     def save_to_file(self, fname):
         ''' Export the KPI data structure as an external file
-        
+
         ----------------------------------------------------------------
-        Default export mode is as a multi-extension fits file. While this 
-        is the prefered option, for backward compatibility purposes, it is 
+        Default export mode is as a multi-extension fits file. While this
+        is the prefered option, for backward compatibility purposes, it is
         also possible to save the structure as a python pickle data
         structure, if the option 'pickle' is set to True.
 
@@ -637,7 +635,7 @@ class KPI(object):
             self.package_as_fits(fname)
             return 0
         else:
-            
+
             try:
                 data = {'name': self.name,
                         'mask': self.VAC,
@@ -646,16 +644,15 @@ class KPI(object):
                         'KerPhi': self.KPM,
                         'RED': self.RED}
             except AttributeError:
-                print("KerPhase_Relation data structure is incomplete")
+                print("KPI data structure is incomplete")
                 print("File %s wasn't saved!" % (fname,))
                 return None
             # -------------
             try:
                 myf = gzip.GzipFile(fname, "wb")
             except:
-                print("File %s cannot be created." +
-                      " KerPhase_Relation data structure wasn't saved." % (
-                          fname,))
+                print("File %s cannot be created." % (fname,))
+                print("KPI data structure wasn't saved.")
                 return None
             # -------------
             pickle.dump(data, myf, -1)

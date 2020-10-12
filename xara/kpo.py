@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 ''' --------------------------------------------------------------------
        XARA: a package for eXtreme Angular Resolution Astronomy
     --------------------------------------------------------------------
@@ -10,42 +12,30 @@
     This file contains the definition of the KPO class:
     --------------------------------------------------
 
-    an object that contains Ker-phase information (kpi), data (kpd) 
+    an object that contains Ker-phase information (kpi), data (kpd)
     and relevant additional information extracted from the fits header
     (hdr)
     -------------------------------------------------------------------- '''
 
-#!/usr/bin/env python
-
 import numpy as np
 import matplotlib.pyplot as plt
 
-import matplotlib.cm as cm
 from scipy.optimize import leastsq
 from scipy.sparse import diags
+from scipy.interpolate import griddata
 
-try:
-    import astropy.io.fits as fits
-except:
-    import pyfits as fits
-
+import astropy.io.fits as fits
 import copy
-import pickle
-import os
 import sys
 import glob
-import gzip
-
-shift = np.fft.fftshift
-fft   = np.fft.fft2
-ifft  = np.fft.ifft2
-
-i2pi  = 1j * 2 * np.pi
-
-from scipy.interpolate import griddata
 
 from . import core
 from . import kpi
+
+shift = np.fft.fftshift
+fft = np.fft.fft2
+ifft = np.fft.ifft2
+i2pi = 1j * 2 * np.pi
 
 
 class KPO():
@@ -155,25 +145,24 @@ class KPO():
 
         ----------------------------------------------------------------- '''
 
-        ISZ   = image.shape[0]
+        ISZ = image.shape[0]
         m2pix = core.mas2rad(pscale) * ISZ / cwavel
 
         print(m2pix)
-        
+
         try:
             test = self.kpi.iKPM
-        except:
+        except AttributeError:
             self.kpi.iKPM = np.linalg.pinv(self.kpi.KPM)
             self.kpi.KPFILT = self.kpi.iKPM.dot(self.kpi.KPM)
 
-        cvis  = self.extract_cvis_from_img(image, m2pix)
-        #kkphi = self.kpi.iKPM.dot(self.kpi.KPM).dot(np.angle(cvis))
+        cvis = self.extract_cvis_from_img(image, m2pix)
         kkphi = self.kpi.KPFILT.dot(np.angle(cvis))
         cvis2 = np.abs(cvis)*np.exp(1j*kkphi)
 
         try:
             test = self.iFF
-        except:
+        except AttributeError:
             self.iFF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ, True)
         img1 = (self.iFF.dot(cvis2)).reshape(ISZ, ISZ)
         return(img1)
@@ -285,93 +274,101 @@ class KPO():
             print("LDFT1: Computing new Fourier matrix...")
             self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
             print("Done!")
-            
-        myft_v = self.FF.dot(image.flatten())
+
+        myft_v = self.FF.dot(image.flatten())  # image.flat ??
         myft_v *= self.kpi.TRM.sum() / image.sum()
         return(myft_v)
-    
+
     # =========================================================================
     # =========================================================================
     def __extract_cvis_fft(self, image, m2pix):
         ''' -------------------------------------------------------------------
         extracts complex visibility from a square image (using old school FFT)
 
-        Assumes that you know what you do and have provided sufficient 
-        zero-padding to avoid Fourier aliasing for the spatial frequencies the 
+        Assumes that you know what you do and have provided sufficient
+        zero-padding to avoid Fourier aliasing for the spatial frequencies the
         model tries to get access to.
 
         The alternative methods use LDFT (local discrete Fourier transform)
+        are the recommended way of computing the Fourier Transform.
         ------------------------------------------------------------------- '''
-        ISZ, DZ = image.shape[0], image.shape[0]/2
-        uv_samp = self.kpi.UVC * m2pix + DZ # uv sample coordinates in F pixels
+        DZ = image.shape[0]//2
+        uv_samp = self.kpi.UVC * m2pix + DZ  # uv sample coords in F pixels
 
         # calculate and normalize the Fourier transform
         ac = shift(fft(shift(image)))
         ac /= (np.abs(ac)).max() / self.kpi.nbap
 
-        xx = np.cast['int'](np.round(uv_samp[:,1]))
-        yy = np.cast['int'](np.round(uv_samp[:,0]))
+        xx = np.cast['int'](np.round(uv_samp[:, 1]))
+        yy = np.cast['int'](np.round(uv_samp[:, 0]))
         myft_v = ac[xx, yy]
         return(myft_v)
-    
+
     # =========================================================================
     # =========================================================================
-    def create_UVP_cov_matrix(self, var_img, option="RED", m2pix=None):
+    def create_UVP_cov_matrix(self, var_img, option="ABS", m2pix=None):
         ''' -------------------------------------------------------------------
         generate the covariance matrix for the UV phase.
 
-        For photon noise, the covariance matrix of the imaginary part of
-        the Fourier transform can be computed explicitly. To go from that to
-        the covariance of the phase takes a bit of a stretch for 2 reasons:
-        - Arctan(imag/real) ~ imag/real for small angles only
-        - the real part: model redundancy or "real part"
+        For independent image noises, the covariance matrix of the imaginary
+        part of the Fourier transform can be computed explicitly. To go from
+        that to the covariance of the phase is possible in the high-Strehl
+        regime where Arctan(imag/real) ~ imag/real.
+
+        Possibilities for the real part:
+        - model redundancy -> option="RED"
+        - "real part"      -> option="REAL"
+        - "modulus"        -> option="ABS"
 
         Parameters:
         ----------
         - var_img: a 2D image with variance per pixel
 
-        Option:
+        Further remark:
         ------
-        This is an ongoing investigation: should the computation involve the
-        model redundancy or the real part of the Fourier transform? In the 
-        latter scenario, should the computation include cross-terms between
-        imaginary and real parts to be more exact?
-        
-        - "RED": default, uses the model redundancy vector
-        - "REAL": uses the real part of the FT
-        - "CPLX": complete computation
+        A more sophisticated implementation could include the computation
+        of cross-terms between imaginary and real parts to be more exact?
 
         Note: Covariance matrix can also be computed via MC simulations, if
-        you are unhappy with the current one. See "append_cov_matrix()"
+        you are unhappy with this one. See "append_cov_matrix()"
+
+        Note: This algorithm was developed in part by Romain Laugier
         ------------------------------------------------------------------- '''
 
         ISZ = var_img.shape[0]
         try:
-            test = self.FF # check to avoid recomputing auxilliary arrays!
+            test = self.FF  # check to avoid recomputing existing arrays!
 
-        except:
+        except AttributeError:
             if m2pix is not None:
                 self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
             else:
                 print("Fourier matrix and/or m2pix are not available.")
                 print("Please compute Fourier matrix.")
                 return
- 
-        dummy = diags(var_img.flatten())
-        
+
+        cov_img = diags(var_img.flat)  # image covariance matrix
+
         if option == "RED":
-            temp = np.diag(1.0/self.kpi.RED).dot(self.FF.imag)
-            self.kp_cov = temp.dot(dummy.dot(temp.T))
-            print("Covariance Matrix computed using model redundancy vector!")
-            
+            BB = self.FF.imag / self.kpi.RED[:, None]
+            BB *= self.kpi.TRM.sum() / var_img.sum()
+            print("Covariance Matrix computed using model redundancy!")
+
         if option == "REAL":
-            temp = np.diag(1.0/self.FF.real.dot(var_img.flatten())).dot(self.FF.imag)
-            self.kp_cov = temp.dot(dummy.dot(temp.T))
+            ft = self.FF.dot(var_img.flat)
+            BB = self.FF.imag / ft.real[:, None]
             print("Covariance Matrix computed using the real part of FT!")
-            
-        if option == "CPLX":
-            self.kp_cov = None
-            print("Not implemented yet!")
+
+        if option == "ABS":
+            ft = self.FF.dot(var_img.flat)
+            BB = self.FF.imag / np.abs(ft)[:, None]
+            print("Covariance Matrix computed using the modulus of FT!")
+
+        # fourier phase covariance added to the KPO data structure
+        self.phi_cov = BB.dot(cov_img.dot(BB.T))
+        # kernel phase covariance added to the KPO data structure
+        self.kp_cov = self.kpi.KPM.dot(self.phi_cov.dot(self.kpi.KPM.T))
+        return self.phi_cov
 
     # =========================================================================
     # =========================================================================
