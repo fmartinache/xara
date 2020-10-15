@@ -4,7 +4,7 @@
        XARA: a package for eXtreme Angular Resolution Astronomy
     --------------------------------------------------------------------
     ---
-    xara is a python module to create, and extract Fourier-phase data 
+    xara is a python module to create, and extract Fourier-phase data
     structures, using the theory described in the two following papers:
     - Martinache, 2010, ApJ, 724, 464.
     - Martinache, 2013, PASP, 125, 422.
@@ -19,7 +19,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-
+import matplotlib.cm as cm
 from scipy.optimize import leastsq
 from scipy.sparse import diags
 from scipy.interpolate import griddata
@@ -59,37 +59,36 @@ class KPO():
         self.kpi = kpi.KPI(fname=fname, array=array,
                            ndgt=ndgt, bmax=bmax, ID=ID)
 
-        self.TARGET = [] # source names
-        self.CVIS   = [] # complex visibilities
-        self.KPDT   = [] # kernel-phase data
-        self.DETPA  = [] # detector position angles
-        self.MJDATE = [] # data modified Julian date
-        self.M2PIX  = -1 # used to save time in later computations
-        
+        self.TARGET = []  # source names
+        self.CVIS = []    # complex visibilities
+        self.KPDT = []    # kernel-phase data
+        self.DETPA = []   # detector position angles
+        self.MJDATE = []  # data modified Julian date
+        self.M2PIX = -1   # used to save time in later computations
+
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
         try:
             hdul = fits.open(fname)
-        except:
+        except FileNotFoundError:
             print("File provided is not a fits file")
-            #raise UserWarning("File provided is not a fits file")
             return
 
         # how many data sets are included?
         # -------------------------------
         nbd = 0
-        for ii in range(len(hdul)):
+        for ii in range(1, len(hdul)):
             try:
                 test = hdul[ii].header['EXTNAME']
                 if 'KP-DATA' in test:
                     nbd += 1
-            except:
+            except KeyError:
                 pass
-            
+
         # read the data
         # -------------
         print("The file contains %d data-sets" % (nbd,))
-        
+
         for ii in range(nbd):
             self.KPDT.append(hdul['KP-DATA%d' % (ii+1,)].data)
             self.DETPA.append(hdul['KP-INFO%d' % (ii+1,)].data['DETPA'])
@@ -97,7 +96,7 @@ class KPO():
             self.TARGET.append(hdul[0].header['TARGET%d' % (ii+1,)])
         try:
             self.CWAVEL = hdul[0].header['CWAVEL']
-        except:
+        except KeyError:
             print("CWAVEL was not set")
 
         # covariance?
@@ -106,13 +105,12 @@ class KPO():
             test = hdul['KP_COV']
             self.kp_cov = test.data
             print("Covariance data available and loaded")
-        except:
+        except KeyError:
             print("No covariance data available")
         # end
         # ---
         hdul.close()
-        
-        
+
     # =========================================================================
     # =========================================================================
     def copy(self):
@@ -140,7 +138,7 @@ class KPO():
         Parameters:
         ----------
         - image: 2D image to be cleaned
-        - pscale: the plate scale of that image        (in mas/pixel) 
+        - pscale: the plate scale of that image        (in mas/pixel)
         - cwavel: the central wavelength of that image (in meters)
 
         ----------------------------------------------------------------- '''
@@ -182,15 +180,18 @@ class KPO():
           + "LDFT2": two-sided DFT (FASTER, but for cartesian grids only)
           + "FFT"  : the old fashioned way - not as accurate !!
         ----------------------------------------------------------------- '''
-        if   method == "LDFT2": res = self.__extract_cvis_ldft2(image, m2pix)
-        elif method == "LDFT1": res = self.__extract_cvis_ldft1(image, m2pix)
-        elif method == "FFT":   res = self.__extract_cvis_fft(image, m2pix)
+        if method == "LDFT2":
+            res = self.__extract_cvis_ldft2(image, m2pix)
+        elif method == "LDFT1":
+            res = self.__extract_cvis_ldft1(image, m2pix)
+        elif method == "FFT":
+            res = self.__extract_cvis_fft(image, m2pix)
         else:
             res = None
             print("Requested method %s does not exist" % (method,))
-        self.M2PIX = m2pix # to check the validity of aux data next time !
+        self.M2PIX = m2pix  # to check the validity of aux data next time !
         return res
-    
+
     # =========================================================================
     # =========================================================================
     def __extract_cvis_ldft2(self, image, m2pix):
@@ -205,13 +206,13 @@ class KPO():
         - m2pix: a scaling constant
 
         Returns a vector of DFT computed only for the coordinates of the model.
-        This method, based on a (LL . image . RR) computation is suited to 
-        models based on a cartesian grid aligned with the image pixels. It 
+        This method, based on a (LL . image . RR) computation is suited to
+        models based on a cartesian grid aligned with the image pixels. It
         becomes less efficient when models do not follow such a grid (like for
         an hexagonal grid) or when the grid is tilted at a non trivial angle
         (to match specific pupil features).
-        
-        For an image of size (SZ x SZ), the computation requires two small 
+
+        For an image of size (SZ x SZ), the computation requires two small
         matrices of size (N_U x SZ) and (N_V x SZ).
 
         The alternative method is *extract_cvis_ldft1*
@@ -221,28 +222,28 @@ class KPO():
         if m2pix != self.M2PIX:
             print("First time for m2pix = %.2f: " % (m2pix,))
             print("LDFT2: Computing new auxilliary data...")
-        
-            self.bl_v = np.unique(self.kpi.UVC[:,1])
-            self.bl_u = np.unique(self.kpi.UVC[:,0])
+
+            self.bl_v = np.unique(self.kpi.UVC[:, 1])
+            self.bl_u = np.unique(self.kpi.UVC[:, 0])
 
             self.vstep = self.bl_v[1] - self.bl_v[0]
             self.ustep = self.bl_u[1] - self.bl_u[0]
 
-            self.LL   = core.compute_DFTM2(self.bl_v, m2pix, YSZ, 0)
-            self.RR   = core.compute_DFTM2(self.bl_u, m2pix, XSZ, 1)
+            self.LL = core.compute_DFTM2(self.bl_v, m2pix, YSZ, 0)
+            self.RR = core.compute_DFTM2(self.bl_u, m2pix, XSZ, 1)
 
-            self.uv_i = np.round(self.kpi.UVC[:,0] / self.ustep, 1)
+            self.uv_i = np.round(self.kpi.UVC[:, 0] / self.ustep, 1)
             self.uv_i -= self.uv_i.min()
             self.uv_i = self.uv_i.astype('int')
-            self.uv_j = np.round(self.kpi.UVC[:,1] / self.vstep, 1)
+            self.uv_j = np.round(self.kpi.UVC[:, 1] / self.vstep, 1)
             self.uv_j -= self.uv_j.min()
             self.uv_j = self.uv_j.astype('int')
             print("Done!")
-            
-        myft = self.LL.dot(image).dot(self.RR) # this is the DFT
+
+        myft = self.LL.dot(image).dot(self.RR)  # this is the DFT
         myft_v = myft[self.uv_j, self.uv_i]
         return(myft_v)
-    
+
     # =========================================================================
     # =========================================================================
     def __extract_cvis_ldft1(self, image, m2pix):
@@ -275,7 +276,7 @@ class KPO():
             self.FF = core.compute_DFTM1(self.kpi.UVC, m2pix, ISZ)
             print("Done!")
 
-        myft_v = self.FF.dot(image.flatten())  # image.flat ??
+        myft_v = self.FF.dot(image.flatten())
         myft_v *= self.kpi.TRM.sum() / image.sum()
         return(myft_v)
 
@@ -330,7 +331,7 @@ class KPO():
         of cross-terms between imaginary and real parts to be more exact?
 
         Note: Covariance matrix can also be computed via MC simulations, if
-        you are unhappy with this one. See "append_cov_matrix()"
+        you are unhappy with this one.
 
         Note: This algorithm was developed in part by Romain Laugier
         ------------------------------------------------------------------- '''
@@ -383,7 +384,7 @@ class KPO():
 
         The details of the extraction procedures will depend on the origin
         of the file and the way the header keywords are organized.
-        
+
         Parameters:
         ----------
         - path     : path to one or more data fits files
@@ -401,7 +402,7 @@ class KPO():
         hdul     = fits.open(fnames[0])
         try:
             tel_name = hdul[0].header['TELESCOP']
-        except:
+        except KeyError:
             tel_name = "JWST" # seems to be the exception?
             
         # ------------------------------------------------------------
@@ -446,18 +447,18 @@ class KPO():
             return
         # ------------------------------------------------------------
         hdul.close()
-        
+
         self.TARGET.append(tgt)
         self.CVIS.append(np.array(cvis))
         self.KPDT.append(np.array(kpd))
         self.DETPA.append(np.array(detpa).flatten())
         self.MJDATE.append(np.array(mjdate))
         return
-    
+
     # =========================================================================
     # =========================================================================
     def extract_KPD_single_cube(self, cube, pscale, cwavel, target=None,
-                                 recenter=False, wrad=None, method="LDFT1"):
+                                recenter=False, wrad=None, method="LDFT1"):
         """ ----------------------------------------------------------------
         Convenience function to handle the kernel processing of a cube of
         square frames that does not fit the available templates.
@@ -468,21 +469,22 @@ class KPO():
         - pscale: the image plate scale (in mas/pixels)
         - cwavel: the central wavelength (in meters)
         ---------------------------------------------------------------- """
-        nfrm = cube.shape[0] # number of frames in the cube
+        nfrm = cube.shape[0]  # number of frames in the cube
         sys.stdout.write("\n")
         for ii in range(nfrm):
             sys.stdout.write("\rCube slice %3d / %3d" % (ii+1, nfrm))
             sys.stdout.flush()
-            self.extract_KPD_single_frame(cube[ii], pscale, cwavel, target=target,
-                                          recenter=recenter, wrad=wrad, method=method)
+            self.extract_KPD_single_frame(
+                cube[ii], pscale, cwavel, target=target,
+                recenter=recenter, wrad=wrad, method=method)
 
         # at this point, the structures need to be reorganized
         # this is a bit ugly and I expect I'll have to change a lot of things
         target = self.TARGET[0]
-        detpa  = np.array(self.DETPA)[:,0]
-        mjdate = np.array(self.MJDATE)[:,0]
-        kpdata = np.array(self.KPDT)[:,0,:]
-        cvis   = np.array(self.CVIS)[:,0,:]
+        detpa = np.array(self.DETPA)[:, 0]
+        mjdate = np.array(self.MJDATE)[:, 0]
+        kpdata = np.array(self.KPDT)[:, 0, :]
+        cvis = np.array(self.CVIS)[:, 0, :]
 
         self.TARGET = []
         self.TARGET.append(target)
@@ -494,13 +496,15 @@ class KPO():
         self.DETPA.append(detpa)
         self.MJDATE = []
         self.MJDATE.append(mjdate)
+        sys.stdout.write("\n")
         return
+
     # =========================================================================
     # =========================================================================
     def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
                                  recenter=False, wrad=None, method="LDFT1"):
         """ ----------------------------------------------------------------
-        Convenience function to handle the kernel processing of a single 
+        Convenience function to handle the kernel processing of a single
         square frame not recognized as one of the available templates.
 
         Parameters:
@@ -510,14 +514,14 @@ class KPO():
         - cwavel: the central wavelength (in meters)
 
         ---------------------------------------------------------------- """
-        
-        cvis   = [] # complex visibility
-        kpdata = [] # Kernel-phase data
-        detpa  = [] # detector position angle
-        mjdate = [] # modified Julian date
+
+        cvis = []    # complex visibility
+        kpdata = []  # Kernel-phase data
+        detpa = []   # detector position angle
+        mjdate = []  # modified Julian date
 
         isz = frame.shape[0]                     # image size
-        m2pix  = core.mas2rad(pscale)*isz/cwavel # Fourier scaling
+        m2pix = core.mas2rad(pscale)*isz/cwavel  # Fourier scaling
 
         if target is None:
             target = "NONAME_TARGET"
@@ -592,7 +596,7 @@ class KPO():
         if target is None:
             try:
                 target = hdul[0].header['TARGNAME']    # Target name
-            except:
+            except KeyError:
                 target = "NONAME_TARGET"
 
         hdul.close()
@@ -616,7 +620,7 @@ class KPO():
                 (x0, y0) = core.determine_origin(data[jj], mask=self.sgmask,
                                                  algo="BCEN", verbose=False,
                                                  wmin=2.0*spix)
-                dy, dx   = (y0-ysz/2), (x0-xsz/2)
+                dy, dx = (y0-ysz/2), (x0-xsz/2)
 
             img = data[jj]
 
@@ -722,7 +726,7 @@ class KPO():
         self.CWAVEL = cwavel
         self.PSCALE = pscale
         self.WRAD   = wrad
-        
+
         return target, cvis, kpdata, detpa, mjdate
 
     # =========================================================================
@@ -934,13 +938,13 @@ class KPO():
     def append_cov_matrix(self, cov_mat=None):
         '''------------------------------------------------------------------
         Appends a covariance matrix to the KPO data-structure.
-        
+
         Parameters:
         ----------
         - cov_mat: the covariance matrix (a numpy array)
 
-        Remarks: 
-        ------- 
+        Remarks:
+        -------
 
         The covariance matrix is expected to be computed externally (e.g.
         using MC simulations), and passed as an argument. It is possible to
@@ -969,7 +973,7 @@ class KPO():
         # ---------------------
         try:
             test = self.TARGET[0]
-        except:
+        except AttributeError:
             print("No kernel-phase data was included")
             self.hdul.writeto(fname, overwrite=True)
             return
@@ -978,7 +982,7 @@ class KPO():
                                          "Central wavelength (in meters)")
         # KPD information available?
         # --------------------------
-        for ii in range(len(self.TARGET)): # loop over the different datasets
+        for ii in range(len(self.TARGET)):  # loop over the different datasets
 
             # KP-DATA HDU
             # -----------
@@ -988,13 +992,15 @@ class KPO():
             kpd_hdu.header['TARGET'] = self.TARGET[ii]
             self.hdul.append(kpd_hdu)
 
-            self.hdul[0].header['TARGET%d' % (ii+1,)] = (self.TARGET[ii],
-                                                         "Target name from fits")
+            self.hdul[0].header['TARGET%d' % (ii+1,)] = (
+                self.TARGET[ii], "Target name from fits")
 
             # KP-INFO HDU
             # -----------
-            detpa  = fits.Column(name="DETPA", format='D', array=self.DETPA[ii])
-            mjdate = fits.Column(name="MJD",   format='D', array=self.MJDATE[ii])
+            detpa = fits.Column(
+                name="DETPA", format='D', array=self.DETPA[ii])
+            mjdate = fits.Column(
+                name="MJD",   format='D', array=self.MJDATE[ii])
             kpi_hdu = fits.BinTableHDU.from_columns([mjdate, detpa])
             kpi_hdu.header['TTYPE1'] = ('MJD', 'Obs. Modified Julian Date')
             kpi_hdu.header['TTYPE2'] = ('DETPA', 'Detector P.A. (degrees)')
@@ -1007,29 +1013,33 @@ class KPO():
             test = self.WRAD
             self.hdul[0].header.add_comment(
                 "Super Gaussian apodization radius used: %d pixels" % (self.WRAD))
-        except:
+        except AttributeError:
             self.hdul[0].header.add_comment("Data was not apodized")
-            
+
         try:
             test = self.kp_cov
             kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
-            kcv_hdu.header.add_comment("Kernel-phase covariance matrix")
+            kcv_hdu.header.add_comment(
+                "Kernel-phase covariance matrix")
             kcv_hdu.header['EXTNAME'] = 'KP-COV'
             self.hdul.append(kcv_hdu)
-            self.hdul[0].header.add_comment("KP covariance extension included")
-        except:
+            self.hdul[0].header.add_comment(
+                "KP covariance extension included")
+        except AttributeError:
             print("No covariance added")
-            self.hdul[0].header.add_comment("No covariance information provided")
+            self.hdul[0].header.add_comment(
+                "No covariance information provided")
 
         # ------------------------
         self.hdul.writeto(fname, overwrite=True)
 
     # =========================================================================
     # =========================================================================
-    def kpd_binary_match_map(self, gsz, gstep, kp_signal, cref=0.01, norm=False):
+    def kpd_binary_match_map(
+            self, gsz, gstep, kp_signal, cref=0.01, norm=False):
         """ Produces a 2D-map showing where the best binary fit occurs
-        
-        Computes the dot product between the kp_signal and a grid (x,y) grid of 
+
+        Computes the dot product between the kp_signal and a grid (x,y) grid of
         possible positions for the companion, for a pre-set contrast.
 
         Parameters:
@@ -1049,52 +1059,61 @@ class KPO():
         ---------------------------------------------------------------
         """
         mgrid = np.zeros((gsz, gsz))
-        
         cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
-            self.kpi.UVC[:,0],
-            self.kpi.UVC[:,1],
+            self.kpi.UVC[:, 0],
+            self.kpi.UVC[:, 1],
             self.CWAVEL, mgrid, gstep)
-        
+
         kpmap = self.kpi.KPM.dot(np.angle(cvis))
-        crit  = kpmap.T.dot(kp_signal)
+        crit = kpmap.T.dot(kp_signal)
 
         if norm is not False:
             crit /= kp_signal.dot(kp_signal) * cref
         return(crit.reshape(gsz, gsz))
-    
+
     # =========================================================================
     # =========================================================================
-    def kpd_binary_cdet(self, gsz, gstep, kp_error, cref=0.01):
-        """Produces a 2D 1-sigma contrast detection limit map, provided a kernel
-        uncertainty vector "kp_error" and parameters that define a grid.
-        
-        In the high-contrast detection regime, the kernel signal is proportionnal 
-        to the contrast.
+    def kpd_binary_cdet_map(self, gsz, gstep, kp_var, cref=0.01):
+        """Produces a 2D 1-sigma contrast detection limit map.
+        ---------------------------------------------------------------
+
+        Uses kernel-phase variance (vector) or covariance (matrix) kp_var
+        and two parameters that define a grid.
+
+        In the high-contrast regime, the kernel signal is proportional to the
+        contrast (secondary/primary convention).
 
         Parameters:
         ----------
-        - gsz       : grid size (gsz x gsz)
-        - gstep     : grid step in mas
-        - kp_error  : the kernel-phase uncertainty vector
-        - cref      : reference contrast (optional, default = 0.01)
+        - gsz     : grid size (gsz x gsz)
+        - gstep   : grid step in mas
+        - kp_var  : the kernel-phase variance (vector) or covariance (matrix)
+        - cref    : reference contrast (optional, default = 0.01)
 
         Returns:
         -------
         A 2D map of attainable contrast (in magnitudes)
-        ---------------------------------------------------------------
-
-        """
+        --------------------------------------------------------------- """
         mgrid = np.zeros((gsz, gsz))
-        
         cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
-            self.kpi.UVC[:,0], self.kpi.UVC[:,1],
+            self.kpi.UVC[:, 0], self.kpi.UVC[:, 1],
             self.CWAVEL, mgrid, gstep)
-        
+
         kpmap = self.kpi.KPM.dot(np.angle(cvis)) / cref
-        clim  = 1.0 / np.sqrt((1.0/kp_error**2).T.dot(kpmap**2))
+        # covariance matrix case!
+        if len(kp_var.shape) == 2:
+            cov_inv = np.linalg.pinv(kp_var)
+            ng = gsz*gsz  # number of grid points
+            clim = np.zeros((ng))
+            for ii in range(ng):
+                k0 = kpmap[:, ii]
+                clim[ii] = np.dot(np.dot(k0, cov_inv), k0)**-0.5
+        # only variance is available
+        else:
+            clim = 1.0 / np.sqrt((1.0/kp_var).T.dot(kpmap**2))
         cmag = -2.5 * np.log10(clim)
         return(cmag.reshape(gsz, gsz))
-        
+
     # =========================================================================
     # =========================================================================
     def kpd_binary_model(self, params, index=0, obs="KERNEL"):
@@ -1108,7 +1127,7 @@ class KPO():
           - params[0] = sep (mas)
           - params[1] = PA (deg) E of N.
           - params[2] = contrast ratio (primary/secondary)
-        
+
           optional:
           - params[3] = angular size of primary (mas)
           - params[4] = angular size of secondary (mas)
@@ -1126,7 +1145,7 @@ class KPO():
 
         try:
             test = self.TARGET[index]
-        except:
+        except AttributeError:
             print("Requested dataset (index=%d) does not exist" % (index,))
             print("No data-matching binary model can be built.")
             print("For generic binary model, use xara.core.cvis_binary()")
@@ -1155,10 +1174,11 @@ class KPO():
             return np.array(sim)[0]
         else:
             return np.array(sim)
-        
+
     # =========================================================================
     # =========================================================================
-    def binary_model_fit_residuals(self, params, index=0, calib=None, obs="KERNEL"):
+    def binary_model_fit_residuals(
+            self, params, index=0, calib=None, obs="KERNEL"):
         model = self.kpd_binary_model(params, index, obs)
 
         # ----------------
@@ -1172,8 +1192,8 @@ class KPO():
                 else:
                     clbrt = self.KPDT[calib]
                     clerr = np.zeros(self.kpi.nbkp)
-                    
-            else: # assumes that the calib is another kpo
+
+            else:  # assumes that the calib is another kpo
                 if calib.KPDT[0].ndim == 2:
                     clbrt = np.mean(calib.KPDT[0], axis=0)
                     clerr = np.std(calib.KPDT[0], axis=0)
@@ -1198,7 +1218,7 @@ class KPO():
         if uncrt is not None:
             error /= uncrt
         return(error)
-            
+
     # =========================================================================
     # =========================================================================
     def binary_model_fit(self, p0, index=0, calib=None, obs="KERNEL"):
@@ -1219,26 +1239,26 @@ class KPO():
         ------------------------------------------------------------------ '''
         try:
             test = self.TARGET[index]
-        except:
+        except IndexError:
             print("Requested dataset (index=%d) does not exist" % (index,))
             print("No data-matching binary model can be built.")
             return
 
-        soluce = leastsq(self.binary_model_fit_residuals, 
+        soluce = leastsq(self.binary_model_fit_residuals,
                          p0, args=((index, calib, obs,)), full_output=1)
-    
+
         return(soluce)
-        
+
     # =========================================================================
     # =========================================================================
     def __cvis_binary_model(self, params, detpa):
         ''' ------------------------------------------------------------------
         Private call to xara.core.cvis_binary(), using KPO object properties.
         ------------------------------------------------------------------ '''
-        u = self.kpi.UVC[:,0]
-        v = self.kpi.UVC[:,1]
+        u = self.kpi.UVC[:, 0]
+        v = self.kpi.UVC[:, 1]
         wl = self.CWAVEL
-        return(core.cvis_binary(u,v,wl, params, detpa))
+        return(core.cvis_binary(u, v, wl, params, detpa))
 
     # =========================================================================
     # =========================================================================
@@ -1257,7 +1277,7 @@ class KPO():
         ------------------------------------------------------------------ '''
 
         uv = self.kpi.UVC
-        
+
         Kinv = np.linalg.pinv(self.kpi.KPM)
 
         dxy = np.max(np.abs(uv))
@@ -1271,11 +1291,11 @@ class KPO():
             data2 = data.copy()
         else:
             data2 = -data
-            
-        z1 = griddata((np.array([uv[:,0], -uv[:,0]]).flatten(),
-                       np.array([uv[:,1], -uv[:,1]]).flatten()),
+
+        z1 = griddata((np.array([uv[:, 0], -uv[:, 0]]).flatten(),
+                       np.array([uv[:, 1], -uv[:, 1]]).flatten()),
                       np.array([data, data2]).flatten(),
-                      (xi[None,:], yi[:,None]), method='linear')
+                      (xi[None, :], yi[:, None]), method='linear')
         if output:
             f1 = plt.figure(figsize=(fsize, fsize))
             ax1 = f1.add_subplot(111)
@@ -1294,7 +1314,7 @@ class KPO():
         ----------
         - ii: the index of the data set to plot (default = 0)
         ----------------------------------------------------------------- '''
-        
+
         plt.errorbar(np.arange(self.kpi.nbkp),
                      np.median(self.KPDT[ii], axis=0),
                      yerr=np.std(self.KPDT[ii], axis=0),

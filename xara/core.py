@@ -200,15 +200,65 @@ def vis2_binary(u, v, wavel, p):
     cvis = cvis_binary(u, v, wavel, p, norm=True)
     return np.abs(cvis)**2
 
+
+# =========================================================================
+def _dist(ys, xs, btwn_pix=False):
+    ''' Private utility: returns a distance 2D array
+    ------------------------------------------------
+
+    Array values give the distance to array center, that can be offset
+    by 0.5 pixel if between_pix is set to True
+
+    Parameters:
+    ----------
+    - ys: (integer) vertical size of the array (in pixels)
+    - xs: (integer) horizontal size of the array (in pixels)
+    - btwn_pix: (boolean) places center of array between pixels '''
+    offset = 0
+    if btwn_pix is True:
+        offset = 0.5
+    xx = np.outer(np.ones(ys), np.arange(xs)-xs//2+offset)
+    yy = np.outer(np.arange(ys)-ys//2+offset, np.ones(xs))
+    return np.hypot(yy, xx)
+
+
+# =========================================================================
+def uniform_disk(ys, xs, radius, btwn_pix=False):
+    ''' Returns a centered 2D uniform disk array
+    ----------------------------------------------
+    Parameters:
+    - (ys, xs) : array size
+    - radius   : radius of the disk
+    - btwn_pix: (boolean) center between pixels
+    ---------------------------------------------- '''
+    mydist = _dist(ys, xs, btwn_pix=btwn_pix)
+    ud = np.zeros_like(mydist)
+    ud[mydist <= radius] = 1.0
+    return ud
+
+
+# =========================================================================
+def super_gauss(ys, xs, radius, btwn_pix=False):
+    ''' Returns a centered 2D super-Gaussian array
+    ----------------------------------------------
+    Parameters:
+    - (xs, ys) : array size
+    - radius   : "radius" of the Super-Gaussian
+    - btwn_pix: (boolean) center between pixels
+    ---------------------------------------------- '''
+    mydist = _dist(ys, xs, btwn_pix=btwn_pix)
+    return np.exp(-(mydist/radius)**4)
+
+
 # =========================================================================
 # =========================================================================
-def super_gauss(xs, ys, x0, y0, w):
+def super_gauss0(xs, ys, x0, y0, w):
     ''' Returns an 2D super-Gaussian function
     ------------------------------------------
     Parameters:
     - (xs, ys) : array size
     - (x0, y0) : center of the Super-Gaussian
-    - w        : width of the Super-Gaussian 
+    - w        : width of the Super-Gaussian
     ------------------------------------------ '''
 
     x = np.outer(np.arange(xs), np.ones(ys))-x0
@@ -218,9 +268,10 @@ def super_gauss(xs, ys, x0, y0, w):
     gg = np.exp(-(dist/w)**4)
     return gg
 
+
 # =========================================================================
 # =========================================================================
-def centroid(image, threshold=0, binarize=False):                        
+def centroid(image, threshold=0, binarize=False):
     ''' ------------------------------------------------------
     Determines the center of gravity of an array
 
