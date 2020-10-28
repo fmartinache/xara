@@ -19,7 +19,6 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from scipy.optimize import leastsq
 from scipy.sparse import diags
 from scipy.interpolate import griddata
@@ -68,6 +67,9 @@ class KPO():
 
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
+        if fname is None:
+            return
+
         try:
             hdul = fits.open(fname)
         except FileNotFoundError:
@@ -967,13 +969,13 @@ class KPO():
         ----------
         - fname: a file name (required)
         ------------------------------------------------------------------ '''
-        self.hdul = self.kpi.package_as_fits() # KPI data
+        self.hdul = self.kpi.package_as_fits()  # KPI data
 
         # KPI information only?
         # ---------------------
         try:
-            test = self.TARGET[0]
-        except AttributeError:
+            _ = self.TARGET[0]
+        except IndexError:
             print("No kernel-phase data was included")
             self.hdul.writeto(fname, overwrite=True)
             return
@@ -1010,14 +1012,15 @@ class KPO():
         # include additional information in fits header
         # ---------------------------------------------
         try:
-            test = self.WRAD
+            _ = self.WRAD
             self.hdul[0].header.add_comment(
-                "Super Gaussian apodization radius used: %d pixels" % (self.WRAD))
+                "Super Gaussian apodization radius used: %d pixels" % (
+                    self.WRAD))
         except AttributeError:
             self.hdul[0].header.add_comment("Data was not apodized")
 
         try:
-            test = self.kp_cov
+            _ = self.kp_cov
             kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
             kcv_hdu.header.add_comment(
                 "Kernel-phase covariance matrix")
@@ -1144,8 +1147,8 @@ class KPO():
         ---------------------------------------------------------------- '''
 
         try:
-            test = self.TARGET[index]
-        except AttributeError:
+            _ = self.TARGET[index]
+        except IndexError:
             print("Requested dataset (index=%d) does not exist" % (index,))
             print("No data-matching binary model can be built.")
             print("For generic binary model, use xara.core.cvis_binary()")
