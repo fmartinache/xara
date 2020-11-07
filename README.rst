@@ -2,10 +2,23 @@ XARA: a python package for eXtreme Angular Resolution Astronomy
 ===============================================================
 
 It is a python module designed to create, extract and manipulate Kernel-phase
-data structures, using the theory presented by 
+data structures, using the theory introduced by:
 
-- Martinache (2010), ApJ, 724, 464.  
+- Martinache (2010), ApJ, 724, 464 
 - Martinache (2013), PASP, 125, 422.
+
+and more recently refined by: Martinache et al (2020), A&A, 636, A72
+
+Links to these papers:
+- https://ui.adsabs.harvard.edu/abs/2010ApJ...724..464M
+- https://ui.adsabs.harvard.edu/abs/2013PASP..125..422M
+- https://doi.org/10.1051/0004-6361/201936981
+
+Tutorial/documentation
+---------------
+
+A growing documentation featuring several tutorial examples and a fair amount
+of howto explanation is available here: http://frantzmartinache.eu/xara_doc/
 
 Acknowledgement
 ---------------
