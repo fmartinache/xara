@@ -11,11 +11,11 @@
     The module is constructed around two main classes:
     -------------------------------------------------
 
-    - KPI: Kernel-Phase Information 
+    - KPI: Kernel-Phase Information
 
-      An object packing the data structures that guide the 
+      An object packing the data structures that guide the
       interpretation of images from an inteferometric point of view,
-      leading to applications like kernel-phase and/or wavefront 
+      leading to applications like kernel-phase and/or wavefront
       sensing
 
     - KPO: Kernel-Phase Observation
