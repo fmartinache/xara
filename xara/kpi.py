@@ -65,15 +65,14 @@ class KPI(object):
 
         Parameters:
         ----------
-        - fname: a valid file name, expected to be either a multi-extension 
+        - fname: a valid file name, expected to be either a multi-extension
                  FITS file respecting a definition agreed upon in Nov 2017
-                 or a python pickle as was the norm before that, or a text
-                 file containing (x,y) coordinates.
+                 or a text file containing (x,y) coordinates.
 
-        - array: If no file name is provided, a 2- or 3-column array 
+        - array: If no file name is provided, a 2- or 3-column array
                  containing the (x,y) coordinates or the (x,y,t) coordinates
-                 (t being the transmission) of a virtual interferometric 
-                 aperture, in meters is required. Not used if a valid file 
+                 (t being the transmission) of a virtual interferometric
+                 aperture, in meters is required. Not used if a valid file
                  name was provided.
 
         Option:
@@ -87,7 +86,7 @@ class KPI(object):
 
         Coordinates in file or array are in meters. For the baseline search
         algorithm to take place smoothly when building up the discrete model,
-        the coordinates should be given with a reasonably good number of 
+        the coordinates should be given with a reasonably good number of
         digits, typically 5 or 6, especially if the coordinates are located
         on a grid that is rotated by a non-trivial angle.
 
@@ -101,24 +100,26 @@ class KPI(object):
             if '.fits' in fname:
                 try:
                     self.load_from_fits(fname)
-                except:
-                    print("Not a valid KERNEL FITS data structure")
+                except OSError:
+                    raise Exception("Invalid KERNEL FITS data structure")
 
             elif '.kpi.gz' in fname:
                 try:
                     self.load_from_pickle(fname)
-                except:
-                    print("Not a valid KERNEL pickled data structure")
+                except OSError:
+                    raise Exception("Invalid KERNEL pickled data structure")
+
             else:
                 try:
                     self.load_aperture_model(fname=fname)
-                    self.rebuild_model(ndgt=ndgt, bmax=bmax)
-                except:
-                    print("Not a valid coordinate file")
+                except OSError:
+                    raise Exception("Not a valid coordinate file")
+                self.rebuild_model(ndgt=ndgt, bmax=bmax)
+
             print("KPI data successfully loaded")
-            
+
         elif array is not None:
-            print("Attempting to build KPI from array %s" % (fname,))
+            print("Attempting to build KPI from array")
             try:
                 self.load_aperture_model(data=array)
                 self.rebuild_model(ndgt=ndgt, bmax=bmax)
@@ -136,6 +137,9 @@ class KPI(object):
             return None
 
     # =========================================================================
+    def __del__(self):
+        print("%s deleted " % (repr(self),))
+
     # =========================================================================
 
     def load_aperture_model(self, fname=None, data=None):
@@ -219,11 +223,11 @@ class KPI(object):
                     k += 1
 
         # search for distinct uv components along the u-axis
-        temp   = np.sort(uvx)
-        mark   = np.append(True, np.diff(temp))
-        a      = temp[mark > prec]
-        nbx    = a.shape[0]                # number of distinct u-components
-        uv_sel = np.zeros((0, 2))          # array for "selected" baselines
+        temp = np.sort(uvx)
+        mark = np.append(True, np.diff(temp))
+        a = temp[mark > prec]
+        nbx = a.shape[0]               # number of distinct u-components
+        uv_sel = np.zeros((0, 2))      # array for "selected" baselines
 
         for i in range(nbx):     # identify distinct v-coords and fill uv_sel
             b = np.where(np.abs(uvx - a[i]) <= prec)
@@ -335,17 +339,18 @@ class KPI(object):
         S1[0:self.nbap-1] = S
 
         self.nbkp = np.size(np.where(abs(S1) < 1e-3))  # number of Ker-phases
-        KPhiCol   = np.where(abs(S1) < 1e-3)[0]
-        self.KPM  = np.zeros((self.nbkp, self.nbuv))  # allocate the array
+        KPhiCol = np.where(abs(S1) < 1e-3)[0]
+        self.KPM = np.zeros((self.nbkp, self.nbuv))  # allocate the array
 
         for i in range(self.nbkp):
             self.KPM[i, :] = (Vh)[KPhiCol[i], :]
 
         self.KPM = self.KPM.dot(np.diag(self.RED))
 
-        print('10 first singular values for this array:')
+        print('first %d singular values for this array:' % (
+            min(10, self.nbap-1)))
         print(np.round(S[:10], 5))
-        self.summary_properties()
+        print(self)
 
     # =========================================================================
     # =========================================================================
@@ -355,9 +360,9 @@ class KPI(object):
         Some aliases are defined here to provide compatibility with
         software using an earlier version of this library.
         ------------------------------------------------------------------ '''
-        self.mask   = self.VAC
+        self.mask = self.VAC
         self.KerPhi = self.KPM
-        self.uv     = self.UVC
+        self.uv = self.UVC
 
     # =========================================================================
     # =========================================================================
@@ -370,7 +375,11 @@ class KPI(object):
         ----------
         - fname: the file name. e.g.: "my_data.fits"
         ------------------------------------------------------------------ '''
-        hdulist = fits.open(fname)
+        try:
+            hdulist = fits.open(fname)
+        except OSError:
+            print("%s is not a valid FITS file" % (fname,))
+            raise OSError
         try:
             self.name = hdulist['PRIMARY'].header['KPI-ID']
         except KeyError:
@@ -407,18 +416,18 @@ class KPI(object):
 
         if ap_flag:
             self.TFM = np.diag(1./self.RED).dot(self.BLM[:, 1:])
-            #self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
+            # self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
 
         self.nbuv = self.UVC.shape[0]
         self.nbkp = self.KPM.shape[0]
-        
+
         self.KerPhi = self.KPM
-        self.uv     = self.UVC
+        self.uv = self.UVC
 
         # ---------------------------------
         # ---------------------------------
         hdulist.close()
-        
+
     # =========================================================================
     # =========================================================================
 
@@ -432,54 +441,50 @@ class KPI(object):
             myf.close()
 
             # -------------------------------
-            # restore the variables for this 
+            # restore the variables for this
             # session of Ker-phase use!
             # -------------------------------
-            try:    self.name = data['name']
-            except: self.name = "UNKNOWN"
+            try:
+                self.name = data['name']
+            except KeyError:
+                self.name = "UNKNOWN"
 
-            self.VAC  = data['mask']
-            self.UVC  = data['uv']
-            self.RED  = data['RED']
-            self.KPM  = data['KerPhi']
-            self.TFM  = data['TFM']
-        
-            self.nbap  = self.VAC.shape[0]
+            self.VAC = data['mask']
+            self.UVC = data['uv']
+            self.RED = data['RED']
+            self.KPM = data['KerPhi']
+            self.TFM = data['TFM']
+
+            self.nbap = self.VAC.shape[0]
             self.nbuv = self.UVC.shape[0]
             self.nbkp = self.KPM.shape[0]
 
             self.backward_compatibility_patch()
 
-            self.BLM   = np.diag(1.0/self.RED).dot(self.TFM)
-        except: 
+            self.BLM = np.diag(1.0/self.RED).dot(self.TFM)
+        except:
             print("File %s isn't a valid Ker-phase data structure" % (fname,))
-            try: self.from_coord_file(fname, "", Ns, satur)
-            except:
-                print("Failed.")
-                return None
+            return None
 
     # =========================================================================
     # =========================================================================
 
-    def summary_properties(self):
-        
-        prop = '''
-        Summary of properties for %s
-        ---------------------------------------------------------------
-        - %3d sub-apertures
-        - %3d distinct baselines
-        - %3d Ker-phases (%4.1f %% target phase information recovery)
-        - %3d Eig-phases (%4.1f %% wavefront information recovery)
-        ---------------------------------------------------------------
-        ''' % (self.name, self.nbap, self.nbuv, self.nbkp,
-               (100.0*self.nbkp)/self.nbuv,
-               self.nbuv-self.nbkp, 100.0*(self.nbuv-self.nbkp)/(self.nbap))
-        print(prop)
+    def __str__(self):
+        msg = "%s KPI data structure\n" % (repr(self),)
+        msg += "-" * 40 + "\n"
+        msg += "-> %3d sub-apertures\n" % (self.nbap)
+        msg += "-> %3d distinct baselines\n" % (self.nbuv)
+        msg += "-> %3d Ker-phases (%5.1f %% target phase)\n" % (
+            self.nbkp, (100.0*self.nbkp)/self.nbuv,)
+        msg += "-> %3d Eig-phases (%5.1f %% wavefront phase)\n" % (
+            self.nbuv-self.nbkp, 100.0*(self.nbuv-self.nbkp)/(self.nbap-1))
+        msg += "-" * 40 + "\n"
+        return msg
 
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax = 4.0, figsize=(12,6), plot_redun = False,
+    def plot_pupil_and_uv(self, xymax=4.0, figsize=(12, 6), plot_redun=False,
                           cmap=cm.gray, ssize=12, lw=0, alpha=1.0, marker='s'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
@@ -503,30 +508,31 @@ class KPI(object):
         ax0 = plt.subplot(121)
 
         s1, s2 = ssize**2, (ssize/2)**2
-        ax0.scatter(self.VAC[:,0], self.VAC[:,1], s=s1, c=self.VAC[:,2],
-                    cmap=cmap, alpha=alpha, marker=marker, lw=lw,
-                    vmin=0.0, vmax=1.0)
-        ax0.axis([-xymax, xymax, -xymax, xymax], aspect='equal')
+        ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
+                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
+        ax0.axis([-xymax, xymax, -xymax, xymax])
+        ax0.set_aspect('equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")
 
         ax1 = plt.subplot(122)
-        ax1.scatter(-self.UVC[:,0], -self.UVC[:,1], s=s2, c=self.RED,
+        ax1.scatter(-self.UVC[:, 0], -self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
-        ax1.scatter(self.UVC[:,0], self.UVC[:,1], s=s2, c=self.RED,
+        ax1.scatter(self.UVC[:, 0], self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
-        
-        ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax], aspect='equal')
+
+        ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax])
+        ax1.set_aspect('equal')
         ax1.set_xlabel("Fourier u-coordinate (meters)")
         ax1.set_ylabel("Fourier v-coordinate (meters)")
 
         # complete previous plot with redundancy of the baseline
         # -------------------------------------------------------
-        dy = 0.1*abs(self.uv[0,1]-self.uv[1,1]) # to offset text in the plot.
+        dy = 0.1*abs(self.uv[0, 1] - self.uv[1, 1])  # plot text offset
         if plot_redun:
             for i in range(self.nbuv):
-                ax1.text(self.uv[i,0]+dy, self.uv[i,1]+dy, 
-                         int(self.RED[i]), ha='center')        
+                ax1.text(self.uv[i, 0]+dy, self.uv[i, 1]+dy,
+                         int(self.RED[i]), ha='center')
             ax1.axis('equal')
         plt.draw()
         f0.set_tight_layout(True)
@@ -539,11 +545,11 @@ class KPI(object):
         ''' ---------------------------------------------------------------
         Packages the KPI data structure into a multi-extension FITS,
         that may be written to disk. Returns a hdu list.
-        
+
         Parameters:
         ----------
 
-        - fname: a file name. If provided, the hdulist is saved as a 
+        - fname: a file name. If provided, the hdulist is saved as a
         fits file.
         --------------------------------------------------------------- '''
 
@@ -566,7 +572,7 @@ class KPI(object):
         hdr['G-STEP'] = (0.0,   "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
         try:
-            test = self.BMAX
+            _ = self.BMAX
             hdr.add_comment(
                 "Model filtering baselines > %.1f meters" % (self.BMAX))
         except AttributeError:

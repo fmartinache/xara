@@ -24,6 +24,7 @@ from scipy.sparse import diags
 from scipy.interpolate import griddata
 
 import astropy.io.fits as fits
+from astropy.time import Time
 import copy
 
 from . import core
@@ -67,12 +68,14 @@ class KPO():
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
         if fname is None:
+            print("No KPO data included")
             return
 
         try:
             hdul = fits.open(fname)
-        except FileNotFoundError:
+        except OSError:
             print("File provided is not a fits file")
+            print("No KPO data included")
             return
 
         # how many data sets are included?
@@ -113,6 +116,34 @@ class KPO():
         hdul.close()
 
     # =========================================================================
+    def __del__(self):
+        print("%s deleted" % (repr(self),))
+
+    # =========================================================================
+    def __str__(self):
+        msg = "%s KPO data structure\n" % (repr(self),)
+        msg += self.kpi.__str__()
+
+        nset = len(self.KPDT)
+        msg += "\n%d datasets present\n" % (nset,)
+
+        for ii in range(nset):
+            msg += "-" * 40 + "\n"
+            msg += "DATA-%02d:\n" % (ii,)
+            msg += "-" * 7 + "\n"
+            msg += "-> %d frames\n" % (self.KPDT[ii].shape[0])
+            msg += "-> TARGET = %s\n" % (self.TARGET[ii],)
+            msg += "-> CWAVEL = %.2f microns\n" % (self.CWAVEL * 1e6,)
+            msg += "-> PSCALE = %.2f mas/pixel\n" % (self.PSCALE,)
+            msg += "-> DETPA range = %.2f - %.2f (degrees)\n" % (
+                self.DETPA[ii][0], self.DETPA[ii][-1])
+            if self.MJDATE[ii][0] != 0.0:
+                myd = Time(val=self.MJDATE[ii][0], format="mjd")
+                msg += "-> MJDATE = %s\n" % myd.to_value("iso")
+
+        msg += "-" * 40 + "\n"
+        return msg
+
     # =========================================================================
     def copy(self):
         ''' -----------------------------------------------------------------
@@ -121,7 +152,6 @@ class KPO():
         res = copy.deepcopy(self)
         return res
 
-    # =========================================================================
     # =========================================================================
     def KP_filter_img(self, image, pscale, cwavel):
         ''' -----------------------------------------------------------------
@@ -470,8 +500,10 @@ class KPO():
         cvis.append(temp)
         kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
 
-        mjdate.append(0.0)  # not available here
-        detpa.append(0.0)   # not available here
+        # mydate = Time.now()
+        # mjdate.append(mydate.to_value("mjd"))  # reduction time
+        detpa.append(0.0)
+        mjdate.append(0.0)
 
         self.CWAVEL = cwavel
         self.PSCALE = pscale
