@@ -64,6 +64,7 @@ class KPO():
         self.DETPA = []   # detector position angles
         self.MJDATE = []  # data modified Julian date
         self.M2PIX = -1   # used to save time in later computations
+        self.WRAD = None  # data apodization function radius
 
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
@@ -545,8 +546,8 @@ class KPO():
             try:
                 _ = self.CVIS[0]
             except IndexError:
-                return
                 print("Extract data before computing a covariance")
+                return
             self.phi_cov = np.cov(np.angle(self.CVIS[0]).T)
 
         if kp_cov is not None:
@@ -612,12 +613,11 @@ class KPO():
 
         # include additional information in fits header
         # ---------------------------------------------
-        try:
-            _ = self.WRAD
+        if self.WRAD is not None:
             self.hdul[0].header.add_comment(
                 "Super Gaussian apodization radius used: %d pixels" % (
                     self.WRAD))
-        except AttributeError:
+        else:
             self.hdul[0].header.add_comment("Data was not apodized")
 
         try:

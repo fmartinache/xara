@@ -272,30 +272,30 @@ def vis2_binary(u, v, wavel, p):
 
 
 # =========================================================================
-def uniform_disk(ys, xs, radius, btwn_pix=False):
+def uniform_disk(ys, xs, radius, between_pix=False):
     ''' Returns a centered 2D uniform disk array
     ----------------------------------------------
     Parameters:
-    - (ys, xs) : array size
-    - radius   : radius of the disk
-    - btwn_pix: (boolean) center between pixels
+    - (ys, xs)   : array size
+    - radius     : radius of the disk
+    - between_pix: (boolean) center between pixels
     ---------------------------------------------- '''
-    mydist = _dist(ys, xs, btwn_pix=btwn_pix)
+    mydist = _dist(ys, xs, between_pix=between_pix)
     ud = np.zeros_like(mydist)
     ud[mydist <= radius] = 1.0
     return ud
 
 
 # =========================================================================
-def super_gauss(ys, xs, radius, btwn_pix=False):
+def super_gauss(ys, xs, radius, between_pix=False):
     ''' Returns a centered 2D super-Gaussian array
     ----------------------------------------------
     Parameters:
-    - (xs, ys) : array size
-    - radius   : "radius" of the Super-Gaussian
-    - btwn_pix: (boolean) center between pixels
+    - (xs, ys)   : array size
+    - radius     : "radius" of the Super-Gaussian
+    - between_pix: (boolean) center between pixels
     ---------------------------------------------- '''
-    mydist = _dist(ys, xs, btwn_pix=btwn_pix)
+    mydist = _dist(ys, xs, between_pix=between_pix)
     return np.exp(-(mydist/radius)**4)
 
 
