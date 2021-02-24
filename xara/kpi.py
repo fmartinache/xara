@@ -188,12 +188,6 @@ class KPI(object):
         - bmax: a baseline filtering parameter (in meters): if not None,
           baselines larger than bmax are eliminated from the discrete model
 
-        - rmin: a baseline filtering parameter (float): if not None,
-          baselines with a redundancy less or equal to rmin are eliminated
-          (EXPERIMENTAL FEATURE)
-
-        This latter option can be useful when working with saturated and/or
-        undersampled data, to reject troublesome baselines.
         ------------------------------------------------------------------ '''
 
         prec = 10**(-ndgt)
@@ -296,6 +290,10 @@ class KPI(object):
         Parameters:
         ----------
         - criterion: an array of boolean of size *nbuv* (before filtering)
+
+        Example of criterion excluding all baselines for which R < 1:
+
+        criterion = kpo.kpi.RED > 1
         ------------------------------------------------------------------ '''
         if criterion is not None:
             uv_sampl = self.UVC.copy()
