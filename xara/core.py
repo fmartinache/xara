@@ -118,6 +118,30 @@ def rad2mas(x):
 
 
 # =========================================================================
+def colinearity_map(smaps, signal):
+    ''' --------------------------------------------------------------
+    Computes the colinearity map between precomputed signals on a grid
+    of positions (smaps) and a signal.
+
+    Parameters:
+    ----------
+    - smaps: a 3 or 4D array of precomputed signals
+    - signal: a 1 or 2D array of astrophysical signal
+
+    Note:
+    ----
+    Assumes that you know what you do and have matched the
+    dimensions of *smaps* and *signal*
+    -------------------------------------------------------------- '''
+    if len(smaps.shape) == 4:
+        tmp = np.tensordot(signal, smaps, axes=([0, 1], [0, 1]))
+    else:
+        tmp = np.tensordot(signal, smaps, axes=1)
+
+    return tmp / np.tensordot(signal, signal)
+
+
+# =========================================================================
 def rebin(a, shape):
     sh = shape[0], a.shape[0]//shape[0], shape[1], a.shape[1]//shape[1]
     return a.reshape(sh).mean(-1).mean(1)
