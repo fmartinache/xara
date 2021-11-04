@@ -23,6 +23,36 @@ ifft = np.fft.ifft2
 
 i2pi = 1j*2*np.pi
 
+
+def fuzzy_intersect1(arr1, arr2, rr=2, single=True):
+    ''' -----------------------------------------------------------------------
+    Computes the fuzzy intersection between two 1D arrays of floating point
+    numbers with a floating point rounding error *rr*
+
+    Parameters:
+    ----------
+    - arr1   : the first 1D array of floats
+    - arr2   : the second 1D array of floats
+    - rr     : the rounding error (default=2 -> two digits)
+    - single : if True, returns only the first value found
+
+    Returns:
+    -------
+    the values that checks abs(v1 - v2) < 10**-rr or []
+    if single is True returns only the first value found
+    ----------------------------------------------------------------------- '''
+    res = []
+    for ii, val in enumerate(arr1):
+        test = list(filter(lambda x: np.abs(x - val) <= 10**(-rr), arr2))
+
+        if test != []:
+            res.append(test[0])
+            if single:
+                return test[0]  # return the first value that matches
+
+    return res
+
+
 # =============================================================================
 # =============================================================================
 class IWFS():
@@ -54,8 +84,11 @@ class IWFS():
 
         self.ID = ID                  # name of this IWFS
         self.nl = nl                  # number of bandpasses
-        self.omax = 5.0               # expected OPD range (+/- omax microns)
-        
+        self.nwmax = 5                # expected OPD range (+/- nwmax waves)
+
+        if self.nl == 1:
+            print("Monochromatic fringe tracker")
+
         self.M2PIX = -1 * np.ones(self.nl)
         self.cwl = np.zeros(self.nl)
         self.ISZ = np.zeros(self.nl, dtype=int)
@@ -106,7 +139,7 @@ class IWFS():
         - pscale : the detector plate scale (float: in mas/pixels)
         - ii     : image index (between 0 and self.nl - 1)
         ------------------------------------------------------------------- '''
-        print("Updating properties for image channel #{ii}:")
+        print(f"Updating properties for image channel #{ii}:")
 
         if wl is not None:
             self.cwl[ii] = wl
@@ -197,12 +230,52 @@ class IWFS():
         ''' -------------------------------------------------------------------
         Computes the optical path difference in microns for the provided
         set of complex visibilities measured at the different wlengths.
+
+        This algorithm uses the fuzzy intersection function to find matches
+        across possible OPDs identified for the different spectral channels.
+
+        Currently set to operate with one or two filters but no more! More
+        channels will require some kind of recursion.
         ------------------------------------------------------------------- '''
 
         if self.nl == 1:  # monochromatic analysis (simple)
             opd = - self.PINV.dot(self.opde[0])
 
         else:  # polychromatic phase unwrapping
-            print("Not implemented yet")
-            opd = None
+            if self.nl > 2:
+                print("Can't do that just yet!")
+                return
+
+            nw = self.nwmax              # local short-hand
+            nuv = self.kpi.nbuv          # local short-hand
+            delta = np.array(self.opde)  # match my earlier notations
+            klambda = np.outer(np.arange(-nw, nw+1), self.cwl) * 1e6
+
+            DELTA = np.zeros(nuv)  # True OPDs here
+
+            for ii in range(nuv):
+                pval = np.outer(np.ones(2*nw+1), delta[:, ii]) + klambda
+                DELTA[ii] = fuzzy_intersect1(pval[:, 0], pval[:, 1], rr=2, single=True)
+            self.test = DELTA
+            opd = - self.PINV.dot(DELTA)
+        return opd
+
+    # =========================================================================
+    # =========================================================================
+    def get_opd2(self):
+        ''' -------------------------------------------------------------------
+        Computes the optical path difference in microns for the provided
+        set of complex visibilities measured at the different wlengths.
+
+        This algorithm uses a pre-computed set of cvis for the different
+        spectral channels as a function of OPD value.
+
+        This is the first approach used for the lab demo of Heimdallr!
+        ------------------------------------------------------------------- '''
+
+        if self.nl == 1:  # monochromatic analysis (simple)
+            opd = - self.PINV.dot(self.opde[0])
+
+        else:  # polychromatic phase unwrapping
+            print("Not implemented yet!")
         return opd
