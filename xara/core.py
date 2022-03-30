@@ -548,7 +548,7 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
 
 # =========================================================================
 def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
-             verbose=True):
+             verbose=True, return_center=False, centroid=None):
     ''' ------------------------------------------------------------
     Re-centering algorithm of a 2D image im0 for kernel-analysis
 
@@ -572,18 +572,24 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
 
     ysz, xsz = im0.shape
 
-    (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose)
+    if (centroid is None):
+        (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose)
 
-    dy, dx = (y0-ysz/2), (x0-xsz/2)
-    if between:
-        dy += 0.5
-        dx += 0.5
+        dy, dx = (y0-ysz/2), (x0-xsz/2)
+        if between:
+            dy += 0.5
+            dx += 0.5
 
-    if verbose:
-        print("centroid: dx=%+5.2f, dy=%+5.2f\n" % (dx, dy),
-              end="", flush=True)
+        if verbose:
+            print("centroid: dx=%+5.2f, dy=%+5.2f\n" % (dx, dy),
+                  end="", flush=True)
+
+    else:
+        dx, dy = centroid
 
     # integer pixel recentering first
+    dx_temp = dx
+    dy_temp = dy
     im0 = np.roll(np.roll(im0, -int(round(dx)), axis=1),
                   -int(round(dy)), axis=0)
 
@@ -619,7 +625,10 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
         offset = np.exp(1j*slope)
         dummy = np.real(shift(ifft(offset * fft(shift(im)))))
         im0 = dummy[oriy:oriy+ysz, orix:orix+xsz]
-    return im0
+    if (return_center == False):
+        return im0
+    else:
+        return im0, dx_temp, dy_temp
 
 
 # =========================================================================

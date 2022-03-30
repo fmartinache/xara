@@ -37,7 +37,7 @@ KPI = kpi.KPI(fname=textpath, bmax=bmax)
 KPI.package_as_fits(fname=fitspath)
 
 # Plot pupil model.
-f = KPI.plot_pupil_and_uv()
+f = KPI.plot_pupil_and_uv(cmap='inferno')
 plt.savefig(textpath[:-3]+'pdf')
 plt.show(block=True)
 plt.close()
@@ -69,7 +69,7 @@ KPI = kpi.KPI(fname=textpath, bmax=bmax)
 KPI.package_as_fits(fname=fitspath)
 
 # Plot pupil model.
-f = KPI.plot_pupil_and_uv()
+f = KPI.plot_pupil_and_uv(cmap='inferno')
 plt.savefig(textpath[:-3]+'pdf')
 plt.show(block=True)
 plt.close()
