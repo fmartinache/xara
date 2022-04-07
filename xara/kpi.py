@@ -506,15 +506,16 @@ class KPI(object):
         ax0 = plt.subplot(121)
 
         s1, s2 = ssize**2, (ssize/2)**2
-        ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
-                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
+        p0 = ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
+                         cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         ax0.axis([-xymax, xymax, -xymax, xymax])
         ax0.set_aspect('equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")
+        plt.colorbar(p0, ax=ax0)
 
         ax1 = plt.subplot(122)
-        ax1.scatter(-self.UVC[:, 0], -self.UVC[:, 1], s=s2, c=self.RED,
+        p1 = ax1.scatter(-self.UVC[:, 0], -self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         ax1.scatter(self.UVC[:, 0], self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
@@ -523,6 +524,7 @@ class KPI(object):
         ax1.set_aspect('equal')
         ax1.set_xlabel("Fourier u-coordinate (meters)")
         ax1.set_ylabel("Fourier v-coordinate (meters)")
+        plt.colorbar(p1, ax=ax1)
 
         # complete previous plot with redundancy of the baseline
         # -------------------------------------------------------
