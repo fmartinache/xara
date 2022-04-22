@@ -27,8 +27,8 @@ import astropy.io.fits as fits
 from astropy.time import Time
 import copy
 
-import core
-import kpi
+from xara import core
+from xara import kpi
 
 shift = np.fft.fftshift
 fft = np.fft.fft2
@@ -448,7 +448,8 @@ class KPO():
     # =========================================================================
     # =========================================================================
     def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
-                                 recenter=False, wrad=None, method="LDFT1"):
+                                 recenter=False, wrad=None, method="LDFT1",
+                                 algo_cent="BCEN", bmax_cent=None):
         """ ----------------------------------------------------------------
         Handles the kernel processing of a single square frame
 
@@ -479,7 +480,9 @@ class KPO():
         if recenter is True:
             ysz, xsz = frame.shape
             (x0, y0) = core.determine_origin(img, mask=self.sgmask,
-                                             algo="BCEN", verbose=False)
+                                             algo=algo_cent, verbose=False,
+                                             mykpo=self, m2pix=m2pix,
+                                             bmax=bmax_cent)
             dy, dx = (y0-ysz/2), (x0-xsz/2)
 
         if self.sgmask is not None:  # use apodization mask before extraction

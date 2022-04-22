@@ -480,13 +480,13 @@ def find_fourier_origin(img, mykpo, m2pix, bmax=6.0):
 
     # Find Fourier plane coordinates which will be considered for the re-centering
     uv_dist = np.sqrt(mykpo.kpi.UVC[:, 0]**2+mykpo.kpi.UVC[:, 1]**2)
-    uv_cutoff = np.where(uv_dist < float(r_cutoff))[0]
+    uv_cutoff = np.where(uv_dist < float(bmax))[0]
 
     # Find best sub-pixel shift
     img_fft = np.fft.rfft2(img_cent)
     best_xy_shift = leastsq(func=fourier_phase_resid_2d,
                             x0=np.array([0., 0.]),
-                            args=(img_fft, m2pix, uv, uv_cutoff),
+                            args=(img_fft, mykpo, m2pix, uv, uv_cutoff),
                             ftol=1E-1)[0]
 
     # Return best shift
@@ -514,7 +514,8 @@ def fourier_phase_resid_2d(xy, img_fft, mykpo, m2pix, uv, uv_cutoff):
 
 
 # =========================================================================
-def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
+def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0,
+                     mykpo=None, m2pix=None, bmax=None):
     ''' ------------------------------------------------------------
     Determines the origin of the image, using among possible algorithms.
 
@@ -540,6 +541,11 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
     if "cog" in algo.lower():
         (x0, y0) = centroid(img1, verbose)
 
+    elif "fpnm" in algo.lower():
+        if mykpo is None or m2pix is None or bmax is None:
+            raise ValueError("Need mykpo, m2pix, and bmax parameters")
+        (x0, y0) = find_fourier_origin(img1, mykpo, m2pix, bmax)
+
     else:
         (x0, y0) = find_psf_center(img1, verbose, nbit=10, wmin=wmin)
 
@@ -548,7 +554,8 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
 
 # =========================================================================
 def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
-             verbose=True, return_center=False, centroid=None):
+             verbose=True, return_center=False, dxdy=None, mykpo=None,
+             m2pix=None, bmax=None):
     ''' ------------------------------------------------------------
     Re-centering algorithm of a 2D image im0 for kernel-analysis
 
@@ -572,8 +579,9 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
 
     ysz, xsz = im0.shape
 
-    if (centroid is None):
-        (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose)
+    if (dxdy is None):
+        (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose,
+                                    mykpo=mykpo, m2pix=m2pix, bmax=bmax)
 
         dy, dx = (y0-ysz/2), (x0-xsz/2)
         if between:
@@ -585,7 +593,7 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
                   end="", flush=True)
 
     else:
-        dx, dy = centroid
+        dx, dy = dxdy
 
     # integer pixel recentering first
     dx_temp = dx

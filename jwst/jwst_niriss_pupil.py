@@ -7,9 +7,8 @@ import numpy as np
 import os
 import sys
 
-sys.path.append('/Users/jkammerer/Documents/Code/xara/xara')
-from core import create_discrete_model, symetrizes_model
-import kpi
+from xara.core import create_discrete_model, symetrizes_model
+from xara import kpi
 
 
 # =============================================================================
@@ -17,17 +16,18 @@ import kpi
 # =============================================================================
 
 # Parameters.
-step = 0.2 # m, grid step size
-tmin = 1e-2 # minimum transmission for a sub-aperture to be considered
+step = 0.6 # m, grid step size
+tmin = 1e-1 # minimum transmission for a sub-aperture to be considered
 binary = False # binary or grey mask
 textpath = 'niriss_clear_pupil.txt'
 fitspath = 'niriss_clear_pupil.fits'
 bmax = None
 
 # Load pupil.
-hdul = pyfits.open('MASKCLEAR.fits')
+hdul = pyfits.open('MASK_CLEARP.fits')
 aper = hdul[0].data
-pxsc = hdul[0].header['REALSCAL'] # m, pupil pixel scale
+pxsc = hdul[0].header['PUPLSCAL'] # m, pupil pixel scale
+pxsc *= 0.85
 
 # Create discrete pupil model using XARA.
 model = create_discrete_model(aper, pxsc, step, binary=binary, tmin=tmin)
@@ -50,8 +50,8 @@ import pdb; pdb.set_trace()
 # =============================================================================
 
 # Parameters.
-step = 0.2 # m, grid step size
-tmin = 1e-2 # minimum transmission for a sub-aperture to be considered
+step = 0.3 # m, grid step size
+tmin = 1e-1 # minimum transmission for a sub-aperture to be considered
 binary = False # binary or grey mask
 textpath = 'niriss_nrm_pupil.txt'
 fitspath = 'niriss_nrm_pupil.fits'
