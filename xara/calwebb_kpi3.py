@@ -142,7 +142,7 @@ class fix_bad_pixels():
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
-        self.bad_bits = ['SATURATED', 'JUMP_DET']
+        self.bad_bits = ['DO_NOT_USE']
         self.bad_bits_allowed = pxdq_flags.keys()
         self.method = 'medfilt'
         self.method_allowed = ['medfilt', 'KI']
@@ -345,7 +345,7 @@ class recenter_frames():
             PSCALE = pscale[INSTRUME+'_'+CHANNEL] # mas
         else:
             PSCALE = pscale[INSTRUME] # mas
-        V3I_YANG = hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
+        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
         sh = 10 # pix
         
         # Suffix for the file path from the current step.
@@ -797,7 +797,7 @@ class extract_kerphase():
             PSCALE = pscale[INSTRUME+'_'+CHANNEL] # mas
         else:
             PSCALE = pscale[INSTRUME] # mas
-        V3I_YANG = hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
+        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
         sh = 10 # pix
         
         # Suffix for the file path from the current step.
@@ -1178,6 +1178,9 @@ class extract_kerphase():
             xx = KPO.kpi.UVC[:, 0]*m2pix+sx//2
             yy = KPO.kpi.UVC[:, 1]*m2pix+sy//2
             ax[0, 0].scatter(xx, yy, s=0.2, c='red')
+            xx = -KPO.kpi.UVC[:, 0]*m2pix+sx//2
+            yy = -KPO.kpi.UVC[:, 1]*m2pix+sy//2
+            ax[0, 0].scatter(xx, yy, s=0.2, c='red')
             ax[0, 0].set_title('Fourier phase', y=1., pad=-20, bbox=dict(facecolor='white', edgecolor='lightgrey', boxstyle='round'))
             if (data.ndim == 2):
                 p01 = ax[0, 1].imshow(kpcor, origin='lower', cmap='RdBu', vmin=-1., vmax=1.)
@@ -1352,6 +1355,9 @@ class empirical_uncertainties():
         kpcov = hdul['KP-COV'].data
         if ((kpdat.ndim != 3) or (kpsig.ndim != 3) or (kpcov.ndim != 4)):
             raise UserWarning('Input is not a valid KPFITS file')
+        if (kpdat.shape[0] < 3):
+            print('Not enough frames to estimate uncertainties empirically, skipping step!')
+            return suffix
         
         # Suffix for the file path from the current step.
         suffix_out = '_emp_kpfits'

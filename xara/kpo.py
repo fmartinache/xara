@@ -487,10 +487,17 @@ class KPO():
 
         if self.sgmask is not None:  # use apodization mask before extraction
             if recenter is True:
-                img *= np.roll(np.roll(self.sgmask, int(round(dx)), axis=1),
-                               int(round(dy)), axis=0)
+                # img *= np.roll(np.roll(self.sgmask, int(round(dx)), axis=1),
+                #                int(round(dy)), axis=0)
+                img = np.roll(np.roll(img, -int(round(dx)), axis=1),
+                              -int(round(dy)), axis=0)
+                img *= self.sgmask
+                dx_temp = dx-int(round(dx))
+                dy_temp = dy-int(round(dy))
             else:
                 img *= self.sgmask
+                dx_temp = dx
+                dy_temp = dy
 
         # ----- complex visibility extraction -----
         temp = self.extract_cvis_from_img(img, m2pix, method)
@@ -498,7 +505,7 @@ class KPO():
         # ---- sub-pixel recentering correction -----
         if recenter is True:
             uvc = self.kpi.UVC * self.M2PIX
-            corr = np.exp(i2pi * uvc.dot(np.array([dx, dy])/float(ysz)))
+            corr = np.exp(i2pi * uvc.dot(np.array([dx_temp, dy_temp])/float(ysz)))
             temp *= corr
 
         cvis.append(temp)
