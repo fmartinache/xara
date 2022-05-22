@@ -1,6 +1,7 @@
 from typing import Optional, Union
 from pathlib import Path
 from astropy.io import fits
+from astropy.io.fits.hdu.hdulist import HDUList
 
 
 def open_fits(
@@ -32,3 +33,16 @@ def open_fits(
             open_path = Path(dirpath) / basename
 
     return fits.open(open_path)
+
+def get_data(hdul: HDUList):
+    try:
+        data = hdul['SCI-MOD'].data
+        erro = hdul['ERR-MOD'].data
+    except KeyError:
+        data = hdul['SCI'].data
+        erro = hdul['ERR'].data
+
+    if data.ndim not in [2, 3]:
+        raise ValueError('Only implemented for 2D image/3D data cube')
+    sy, sx = data.shape[-2:]
+    return data, erro, sy, sx

@@ -311,15 +311,7 @@ class recenter_frames():
 
         # Open FITS file.
         hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except KeyError:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
+        data, erro, sx, sy = ut.get_data(hdul)
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
@@ -598,15 +590,7 @@ class window_frames():
 
         # Open FITS file.
         hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except KeyError:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
+        data, erro, sx, sy = ut.get_data(hdul)
 
         # Suffix for the file path from the current step.
         suffix_out = '_windowed'
@@ -741,15 +725,7 @@ class extract_kerphase():
 
         # Open FITS file.
         hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except KeyError:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
+        data, erro, sx, sy = ut.get_data(hdul)
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
@@ -870,7 +846,6 @@ class extract_kerphase():
                                                  method='LDFT1')
 
         # Find output file path.
-        __import__('ipdb').set_trace()
         if (output_dir is None):
             path = file[:-5]
         else:
