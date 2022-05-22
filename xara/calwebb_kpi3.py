@@ -18,6 +18,7 @@ from scipy.ndimage import median_filter
 
 from xara import core
 from xara import kpo
+from xara import calwebb_utils as ut
 
 show_plots = False
 
@@ -163,9 +164,9 @@ class fix_bad_pixels():
         print('--> Running fix bad pixels step...')
 
         # Open FITS file.
-        hdul = pyfits.open(file[:-5]+suffix+'.fits')
         if (suffix != ''):
-            raise UserWarning('Requires pipeline output')
+            raise ValueError('Requires pipeline output')
+        hdul = ut.open_fits(file)
         data = hdul['SCI'].data
         erro = hdul['ERR'].data
         pxdq = hdul['DQ'].data
@@ -309,17 +310,7 @@ class recenter_frames():
         print('--> Running recenter frames step...')
 
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         try:
             data = hdul['SCI-MOD'].data
             erro = hdul['ERR-MOD'].data
@@ -606,17 +597,7 @@ class window_frames():
         print('--> Running window frames step...')
 
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         try:
             data = hdul['SCI-MOD'].data
             erro = hdul['ERR-MOD'].data
@@ -759,17 +740,7 @@ class extract_kerphase():
         print('--> Running extract kerphase step...')
 
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         try:
             data = hdul['SCI-MOD'].data
             erro = hdul['ERR-MOD'].data
@@ -1329,17 +1300,7 @@ class empirical_uncertainties():
         print('--> Running empirical uncertainties step...')
 
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         kpdat = hdul['KP-DATA'].data
         kpsig = hdul['KP-SIGM'].data
         kpcov = hdul['KP-COV'].data
