@@ -210,14 +210,7 @@ class fix_bad_pixels():
                 raise UserWarning('Not implemented yet')
 
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
+        path = ut.get_output_base(file, output_dir=output_dir)
 
         # Plot.
         if self.plot:
@@ -447,14 +440,7 @@ class recenter_frames():
                 erro_recentered = np.array(erro_recentered)
 
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
+        path = ut.get_output_base(file, output_dir=output_dir)
 
         # Plot.
         if self.plot:
@@ -610,14 +596,7 @@ class window_frames():
         erro_windowed *= sgmask
 
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
+        path = ut.get_output_base(file, output_dir=output_dir)
 
         # Plot.
         if self.plot:
@@ -846,14 +825,7 @@ class extract_kerphase():
                                                  method='LDFT1')
 
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
+        path = ut.get_output_base(file, output_dir=output_dir)
 
         if not recenter_frames_obj.skip:
             if ('FPNM' in recenter_frames_obj.method):
@@ -1311,14 +1283,7 @@ class empirical_uncertainties():
             emcov[0, i] = np.multiply(wmcor, emsig[0, i][:, None]*emsig[0, i][None, :])
 
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
+        path = ut.get_output_base(file, output_dir=output_dir)
 
         # Plot.
         if self.plot:
