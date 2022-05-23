@@ -20,8 +20,6 @@ from xara import core
 from xara import kpo
 from xara import calwebb_utils as ut
 
-show_plots = False
-
 # http://svo2.cab.inta-csic.es/theory/fps/
 wave_nircam = {'F212N': 2.121193}  # micron
 weff_nircam = {'F212N': 0.027427}  # micron
@@ -75,6 +73,7 @@ class KPI3Pipeline():
 
         # Initialize the pipeline parameters.
         self.output_dir = None
+        self.show_plots = False
 
     def run(self,
             file):
@@ -99,26 +98,31 @@ class KPI3Pipeline():
         if not self.fix_bad_pixels.skip:
             suffix = self.fix_bad_pixels.step(file,
                                               suffix,
-                                              self.output_dir)
+                                              self.output_dir,
+                                              show_plots=self.show_plots)
         if not self.extract_kerphase.skip:
             suffix = self.extract_kerphase.step(file,
                                                 suffix,
                                                 self.output_dir,
                                                 self.recenter_frames,
-                                                self.window_frames)
+                                                self.window_frames,
+                                                show_plots=self.show_plots)
         else:
             if not self.recenter_frames.skip:
                 suffix = self.recenter_frames.step(file,
                                                    suffix,
-                                                   self.output_dir)
+                                                   self.output_dir,
+                                                   show_plots=self.show_plots)
             if not self.window_frames.skip:
                 suffix = self.window_frames.step(file,
                                                  suffix,
-                                                 self.output_dir)
+                                                 self.output_dir,
+                                                 show_plots=self.show_plots)
         if not self.empirical_uncertainties.skip:
             suffix = self.empirical_uncertainties.step(file,
                                                        suffix,
-                                                       self.output_dir)
+                                                       self.output_dir,
+                                                       show_plots=self.show_plots)
 
 
 class fix_bad_pixels():
@@ -146,7 +150,8 @@ class fix_bad_pixels():
     def step(self,
              file,
              suffix,
-             output_dir):
+             output_dir,
+             show_plots=False):
         """
         Run the pipeline step.
 
@@ -285,7 +290,8 @@ class recenter_frames():
     def step(self,
              file,
              suffix,
-             output_dir):
+             output_dir,
+             show_plots=False):
         """
         Run the pipeline step.
 
@@ -557,7 +563,8 @@ class window_frames():
     def step(self,
              file,
              suffix,
-             output_dir):
+             output_dir,
+             show_plots=False):
         """
         Run the pipeline step.
 
@@ -681,7 +688,8 @@ class extract_kerphase():
              suffix,
              output_dir,
              recenter_frames_obj,
-             window_frames_obj):
+             window_frames_obj,
+             show_plots=False):
         """
         Run the pipeline step.
 
@@ -1229,7 +1237,8 @@ class empirical_uncertainties():
     def step(self,
              file,
              suffix,
-             output_dir):
+             output_dir,
+             show_plots=False):
         """
         Run the pipeline step.
 
