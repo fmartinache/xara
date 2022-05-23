@@ -17,6 +17,7 @@ def split_file_path(fpath: Union[Path, str]):
 
     return pdir, fstem, fext
 
+
 def get_output_base(input_path: Union[Path, str], output_dir: Optional[Union[Path, str]] = None):
     input_path = Path(input_path)
     parent_dir, fstem, _ = split_file_path(input_path)
@@ -26,6 +27,7 @@ def get_output_base(input_path: Union[Path, str], output_dir: Optional[Union[Pat
         output_base = Path(output_dir) / fstem
 
     return str(output_base)
+
 
 def open_fits(
     original_fpath: Union[Path, str],

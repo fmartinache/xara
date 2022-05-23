@@ -285,6 +285,7 @@ class recenter_frames():
         self.method = 'FPNM'
         self.method_allowed = ['BCEN', 'COGI', 'FPNM']
         self.instrume_allowed = ['NIRCAM', 'NIRISS']
+        self.crop = False
         self.bmax = 6.  # m
 
     def step(self,
@@ -311,8 +312,33 @@ class recenter_frames():
         # Open FITS file.
         hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         data, erro, sx, sy = ut.get_data(hdul)
+
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
+
+        if self.crop:
+            if INSTRUME != "NIRISS":
+                raise NotImplementedError("Cropping is implemented for NIRISS only.")
+            # Copied from NIRISS bad pixel correction script
+            # TODO: Handle 2d data
+            ww_max = []
+            for j in range(data.shape[0]):
+                ww_max += [
+                    np.unravel_index(
+                        np.argmax(median_filter(data[j], size=3)), data[j].shape
+                    )
+                ]
+            ww_max = np.array(ww_max)
+            # the bottom 4 rows are reference pixels
+            yh = min(sy - np.max(ww_max[:, 0]), np.min(ww_max[:, 0]) - 4)
+            xh = min(sx - np.max(ww_max[:, 1]), np.min(ww_max[:, 1]) - 0)
+            sh = min(xh, yh)
+
+            print('Cutting all frames to %.0fx%.0f pixels' % (2 * sh, 2 * sh))
+            data = data[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            erro = erro[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            sy, sx = data.shape[-2:]
+
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
         if (INSTRUME == 'NIRCAM'):
             CHANNEL = hdul[0].header['CHANNEL']
@@ -713,8 +739,33 @@ class extract_kerphase():
         # Open FITS file.
         hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         data, erro, sx, sy = ut.get_data(hdul)
+
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
+
+        if recenter_frames_obj.crop:
+            if INSTRUME != "NIRISS":
+                raise NotImplementedError("Cropping is implemented for NIRISS only.")
+            # Copied from NIRISS bad pixel correction script
+            # TODO: Handle 2d data
+            ww_max = []
+            for j in range(data.shape[0]):
+                ww_max += [
+                    np.unravel_index(
+                        np.argmax(median_filter(data[j], size=3)), data[j].shape
+                    )
+                ]
+            ww_max = np.array(ww_max)
+            # the bottom 4 rows are reference pixels
+            yh = min(sy - np.max(ww_max[:, 0]), np.min(ww_max[:, 0]) - 4)
+            xh = min(sx - np.max(ww_max[:, 1]), np.min(ww_max[:, 1]) - 0)
+            sh = min(xh, yh)
+
+            print('Cutting all frames to %.0fx%.0f pixels' % (2 * sh, 2 * sh))
+            data = data[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            erro = erro[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            sy, sx = data.shape[-2:]
+
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
         if (INSTRUME == 'NIRCAM'):
             CHANNEL = hdul[0].header['CHANNEL']
