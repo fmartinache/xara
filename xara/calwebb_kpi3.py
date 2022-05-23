@@ -11,29 +11,28 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 import os
-import sys
 
 import matplotlib.patheffects as PathEffects
 
 from scipy.ndimage import median_filter
 
 from xara import core
-from xara import kpi
 from xara import kpo
+from xara import calwebb_utils as ut
 
 show_plots = False
 
 # http://svo2.cab.inta-csic.es/theory/fps/
-wave_nircam = {'F212N': 2.121193} # micron
-weff_nircam = {'F212N': 0.027427} # micron
+wave_nircam = {'F212N': 2.121193}  # micron
+weff_nircam = {'F212N': 0.027427}  # micron
 wave_niriss = {'F277W': 2.739519,
                'F380M': 3.826384,
                'F430M': 4.282976,
-               'F480M': 4.813019} # micron
+               'F480M': 4.813019}  # micron
 weff_niriss = {'F277W': 0.644830,
                'F380M': 0.201962,
                'F430M': 0.203914,
-               'F480M': 0.297379} # micron
+               'F480M': 0.297379}  # micron
 # https://jwst-reffiles.stsci.edu/source/data_quality.html
 pxdq_flags = {'DO_NOT_USE': 1,
               'SATURATED': 2,
@@ -42,12 +41,12 @@ pxdq_flags = {'DO_NOT_USE': 1,
 # https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-detector-overview
 pscale = {'NIRCAM_SHORT': 31.,
           'NIRCAM_LONG': 63.,
-          'NIRISS': 65.6} # mas
+          'NIRISS': 65.6}  # mas
 # https://jwst-docs.stsci.edu/jwst-near-infrared-camera/nircam-instrumentation/nircam-detector-overview/nircam-detector-performance
 # https://jwst-docs.stsci.edu/jwst-near-infrared-imager-and-slitless-spectrograph/niriss-instrumentation/niriss-detector-overview/niriss-detector-performance
 gain = {'NIRCAM_SHORT': 2.05,
         'NIRCAM_LONG': 1.82,
-        'NIRISS': 1.61} # e-/ADU
+        'NIRISS': 1.61}  # e-/ADU
 
 
 # =============================================================================
@@ -57,88 +56,85 @@ gain = {'NIRCAM_SHORT': 2.05,
 class KPI3Pipeline():
     """
     JWST stage 3 pipeline for kernel-phase imaging.
-    
+
     ..Notes:: AMI skips ipc, photom, and resample steps in stage 1 & 2
               pipelines. Kernel-phase should also skip these steps.
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline.
         """
-        
+
         # Initialize the pipeline steps.
         self.fix_bad_pixels = fix_bad_pixels()
         self.recenter_frames = recenter_frames()
         self.window_frames = window_frames()
         self.extract_kerphase = extract_kerphase()
         self.empirical_uncertainties = empirical_uncertainties()
-        
+
         # Initialize the pipeline parameters.
         self.output_dir = None
-        
-        pass
-    
+
     def run(self,
             file):
         """
         Run the pipeline.
-        
+
         Parameters
         ----------
         file: str
             Path to stage 2-calibrated pipeline product.
         """
-        
+
         # Make the output directory if it does not exist.
         if (self.output_dir is not None):
             if (not os.path.exists(self.output_dir)):
                 os.makedirs(self.output_dir)
-        
+
         # Run the pipeline steps if they are not skipped. For the kernel-phase
         # extraction, run the re-centering and the windowing internally in
         # complex visibility space.
         suffix = ''
-        if (self.fix_bad_pixels.skip == False):
+        if not self.fix_bad_pixels.skip:
             suffix = self.fix_bad_pixels.step(file,
                                               suffix,
                                               self.output_dir)
-        if (self.extract_kerphase.skip == False):
+        if not self.extract_kerphase.skip:
             suffix = self.extract_kerphase.step(file,
                                                 suffix,
                                                 self.output_dir,
                                                 self.recenter_frames,
                                                 self.window_frames)
         else:
-            if (self.recenter_frames.skip == False):
+            if not self.recenter_frames.skip:
                 suffix = self.recenter_frames.step(file,
                                                    suffix,
                                                    self.output_dir)
-            if (self.window_frames.skip == False):
+            if not self.window_frames.skip:
                 suffix = self.window_frames.step(file,
                                                  suffix,
                                                  self.output_dir)
-        if (self.empirical_uncertainties.skip == False):
+        if not self.empirical_uncertainties.skip:
             suffix = self.empirical_uncertainties.step(file,
                                                        suffix,
                                                        self.output_dir)
-        
-        pass
+
 
 class fix_bad_pixels():
     """
     Fix bad pixels.
-    
+
     References for the KI method:
         https://ui.adsabs.harvard.edu/abs/2019MNRAS.486..639K/abstract
         https://ui.adsabs.harvard.edu/abs/2013MNRAS.433.1718I/abstract
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline step.
         """
-        
+
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
@@ -146,16 +142,14 @@ class fix_bad_pixels():
         self.bad_bits_allowed = pxdq_flags.keys()
         self.method = 'medfilt'
         self.method_allowed = ['medfilt', 'KI']
-        
-        pass
-    
+
     def step(self,
              file,
              suffix,
              output_dir):
         """
         Run the pipeline step.
-        
+
         Parameters
         ----------
         file: str
@@ -166,23 +160,23 @@ class fix_bad_pixels():
         output_dir: str
             Output directory.
         """
-        
+
         print('--> Running fix bad pixels step...')
-        
+
         # Open FITS file.
-        hdul = pyfits.open(file[:-5]+suffix+'.fits')
         if (suffix != ''):
-            raise UserWarning('Requires pipeline output')
+            raise ValueError('Requires pipeline output')
+        hdul = ut.open_fits(file)
         data = hdul['SCI'].data
         erro = hdul['ERR'].data
         pxdq = hdul['DQ'].data
         if (data.ndim not in [2, 3]):
             raise UserWarning('Only implemented for 2D image/3D data cube')
         sy, sx = data.shape[-2:]
-        
+
         # Suffix for the file path from the current step.
         suffix_out = '_bpfixed'
-        
+
         # Make bad pixel map.
         mask = pxdq < 0
         for i in range(len(self.bad_bits)):
@@ -195,9 +189,9 @@ class fix_bad_pixels():
                     bb = self.bad_bits[i]
                 else:
                     bb += ', '+self.bad_bits[i]
-        
+
         print('Found %.0f bad pixels (%.2f%%)' % (np.sum(mask), np.sum(mask)/np.prod(mask.shape)*100.))
-        
+
         # Fix bad pixels.
         data_bpfixed = data.copy()
         erro_bpfixed = erro.copy()
@@ -214,19 +208,12 @@ class fix_bad_pixels():
                         erro_bpfixed[i][mask[i]] = median_filter(erro_bpfixed[i], size=5)[mask[i]]
             elif (self.method == 'KI'):
                 raise UserWarning('Not implemented yet')
-        
+
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
-        
+        path = ut.get_output_base(file, output_dir=output_dir)
+
         # Plot.
-        if (self.plot == True):
+        if self.plot:
             plt.ioff()
             f, ax = plt.subplots(1, 3, figsize=(2.25*6.4, 0.75*4.8))
             if (data.ndim == 2):
@@ -254,10 +241,10 @@ class fix_bad_pixels():
             plt.suptitle('Fix bad pixels step', size=18)
             plt.tight_layout()
             plt.savefig(path+suffix_out+'.pdf')
-            if (show_plots == True):
+            if show_plots:
                 plt.show()
             plt.close()
-        
+
         # Save FITS file.
         hdu_sci_mod = pyfits.ImageHDU(data_bpfixed)
         hdu_sci_mod.header['EXTNAME'] = 'SCI-MOD'
@@ -271,38 +258,37 @@ class fix_bad_pixels():
         hdul += [hdu_sci_mod, hdu_err_mod, hdu_dq_mod]
         hdul.writeto(path+suffix_out+'.fits', output_verify='fix', overwrite=True)
         hdul.close()
-        
+
         print('Done')
-        
+
         return suffix_out
+
 
 class recenter_frames():
     """
     Re-center the individual frames.
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline step.
         """
-        
+
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
         self.method = 'FPNM'
         self.method_allowed = ['BCEN', 'COGI', 'FPNM']
         self.instrume_allowed = ['NIRCAM', 'NIRISS']
-        self.bmax = 6. # m
-        
-        pass
-    
+        self.bmax = 6.  # m
+
     def step(self,
              file,
              suffix,
              output_dir):
         """
         Run the pipeline step.
-        
+
         Parameters
         ----------
         file: str
@@ -313,46 +299,28 @@ class recenter_frames():
         output_dir: str
             Output directory.
         """
-        
+
         print('--> Running recenter frames step...')
-        
+
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
+        data, erro, sx, sy = ut.get_data(hdul)
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
         if (INSTRUME == 'NIRCAM'):
             CHANNEL = hdul[0].header['CHANNEL']
-            PSCALE = pscale[INSTRUME+'_'+CHANNEL] # mas
+            PSCALE = pscale[INSTRUME+'_'+CHANNEL]  # mas
         else:
-            PSCALE = pscale[INSTRUME] # mas
-        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
-        sh = 10 # pix
-        
+            PSCALE = pscale[INSTRUME]  # mas
+        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY']  # deg, counter-clockwise
+        sh = 10  # pix
+
         # Suffix for the file path from the current step.
         suffix_out = '_recentered'
-        
+
         if ('FPNM' in self.method):
-            
+
             # Check if instrument and filter are known.
             if (INSTRUME not in self.instrume_allowed):
                 raise UserWarning('Unknown instrument')
@@ -363,25 +331,25 @@ class recenter_frames():
                     filter_allowed = wave_niriss.keys()
             if (FILTER not in filter_allowed):
                 raise UserWarning('Unknown filter')
-            
+
             # Get pupil model path and filter effective wavelength and width.
             if (INSTRUME == 'NIRCAM'):
                 path = os.path.realpath(__file__)
                 temp = path.rfind('/')
                 fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
-                wave = wave_nircam[FILTER]*1e-6 # m
-                weff = weff_nircam[FILTER]*1e-6 # m
+                wave = wave_nircam[FILTER]*1e-6  # m
+                weff = weff_nircam[FILTER]*1e-6  # m
             elif (INSTRUME == 'NIRISS'):
                 path = os.path.realpath(__file__)
                 temp = path.rfind('/')
                 fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
-                wave = wave_niriss[FILTER]*1e-6 # m
-                weff = weff_niriss[FILTER]*1e-6 # m
-            
+                wave = wave_niriss[FILTER]*1e-6  # m
+                weff = weff_niriss[FILTER]*1e-6  # m
+
             print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
-            
+
             # Rotate pupil model.
-            theta = np.deg2rad(V3I_YANG) # rad
+            theta = np.deg2rad(V3I_YANG)  # rad
             rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
             hdul_pup = pyfits.open(fname)
             xxc = hdul_pup['APERTURE'].data['XXC']
@@ -395,7 +363,7 @@ class recenter_frames():
             txtfile = open('pupil_model.txt', 'w')
             txtfile.write(txt)
             txtfile.close()
-            
+
             # Load pupil model.
             KPO = kpo.KPO(fname='pupil_model.txt',
                           array=None,
@@ -403,16 +371,16 @@ class recenter_frames():
                           bmax=self.bmax,
                           ID='')
             m2pix = core.mas2rad(PSCALE)*sx/wave
-        
+
         else:
             KPO = None
             m2pix = None
-        
+
         # Re-center.
         if (self.method not in self.method_allowed):
             raise UserWarning('Unknown re-centering method')
         else:
-            
+
             if (data.ndim == 2):
                 data_recentered, dx, dy = core.recenter(data,
                                                         algo=self.method,
@@ -434,7 +402,7 @@ class recenter_frames():
                                                 mykpo=KPO,
                                                 m2pix=m2pix,
                                                 bmax=self.bmax)
-                
+
                 print('Image shift = (%.2f, %.2f)' % (dx, dy))
             else:
                 data_recentered = []
@@ -466,23 +434,16 @@ class recenter_frames():
                                          m2pix=m2pix,
                                          bmax=self.bmax)
                     erro_recentered += [temp]
-                    
+
                     print('Image shift = (%.2f, %.2f)' % (dx[-1], dy[-1]))
                 data_recentered = np.array(data_recentered)
                 erro_recentered = np.array(erro_recentered)
-        
+
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
-        
+        path = ut.get_output_base(file, output_dir=output_dir)
+
         # Plot.
-        if (self.plot == True):
+        if self.plot:
             plt.ioff()
             f, ax = plt.subplots(2, 2, figsize=(1.5*6.4, 1.5*4.8))
             if (data.ndim == 2):
@@ -547,60 +508,59 @@ class recenter_frames():
             plt.suptitle('Recenter frames step', size=18)
             plt.tight_layout()
             plt.savefig(path+suffix_out+'.pdf')
-            if (show_plots == True):
+            if show_plots:
                 plt.show()
             plt.close()
-        
+
         # Save FITS file.
         try:
             hdul['SCI-MOD'].data = data_recentered
             hdul['ERR-MOD'].data = erro_recentered
-        except:
+        except Exception:
             hdu_sci_mod = pyfits.ImageHDU(data_recentered)
             hdu_sci_mod.header['EXTNAME'] = 'SCI-MOD'
             hdu_err_mod = pyfits.ImageHDU(erro_recentered)
             hdu_err_mod.header['EXTNAME'] = 'ERR-MOD'
             hdul += [hdu_sci_mod, hdu_err_mod]
         if (data.ndim == 2):
-            xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array([dx])) # pix
-            ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array([dy])) # pix
+            xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array([dx]))  # pix
+            ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array([dy]))  # pix
         else:
-            xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array(dx)) # pix
-            ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array(dy)) # pix
+            xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array(dx))  # pix
+            ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array(dy))  # pix
         hdu_ims = pyfits.BinTableHDU.from_columns([xsh, ysh])
         hdu_ims.header['EXTNAME'] = 'IMSHIFT'
         hdul += [hdu_ims]
         hdul.writeto(path+suffix_out+'.fits', output_verify='fix', overwrite=True)
         hdul.close()
-        
+
         print('Done')
-        
+
         return suffix_out
+
 
 class window_frames():
     """
     Window the individual frames.
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline step.
         """
-        
+
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
-        self.wrad = None # pix
-        
-        pass
-    
+        self.wrad = None  # pix
+
     def step(self,
              file,
              suffix,
              output_dir):
         """
         Run the pipeline step.
-        
+
         Parameters
         ----------
         file: str
@@ -611,39 +571,21 @@ class window_frames():
         output_dir: str
             Output directory.
         """
-        
+
         print('--> Running window frames step...')
-        
+
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
-        
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
+        data, erro, sx, sy = ut.get_data(hdul)
+
         # Suffix for the file path from the current step.
         suffix_out = '_windowed'
-        
+
         # Window.
         if (self.wrad is None):
-            wrad = min(40, sx//4) # pix
+            wrad = min(40, sx//4)  # pix
         else:
-            wrad = self.wrad # pix
+            wrad = self.wrad  # pix
         data_windowed = data.copy()
         erro_windowed = erro.copy()
         sgmask = core.super_gauss(sy,
@@ -652,19 +594,12 @@ class window_frames():
                                   between_pix=False)
         data_windowed *= sgmask
         erro_windowed *= sgmask
-        
+
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
-        
+        path = ut.get_output_base(file, output_dir=output_dir)
+
         # Plot.
-        if (self.plot == True):
+        if self.plot:
             plt.ioff()
             f, ax = plt.subplots(1, 2, figsize=(1.5*6.4, 0.75*4.8))
             if (data.ndim == 2):
@@ -690,17 +625,17 @@ class window_frames():
             plt.suptitle('Window frames step', size=18)
             plt.tight_layout()
             plt.savefig(path+suffix_out+'.pdf')
-            if (show_plots == True):
+            if show_plots:
                 plt.show()
             plt.close()
-        
+
         # Save FITS file.
         try:
             hdul['SCI-MOD'].data = data_windowed
             hdul['SCI-MOD'].header['WRAD'] = wrad
             hdul['ERR-MOD'].data = erro_windowed
             hdul['ERR-MOD'].header['WRAD'] = wrad
-        except:
+        except Exception:
             hdu_sci_mod = pyfits.ImageHDU(data_windowed)
             hdu_sci_mod.header['EXTNAME'] = 'SCI-MOD'
             hdu_sci_mod.header['WRAD'] = wrad
@@ -714,34 +649,33 @@ class window_frames():
         hdul += [hdu_win]
         hdul.writeto(path+suffix_out+'.fits', output_verify='fix', overwrite=True)
         hdul.close()
-        
+
         print('Done')
-        
+
         return suffix_out
+
 
 class extract_kerphase():
     """
     Extract the kernel-phase while re-centering in complex visibility space.
-    
+
     The KPFITS file structure has been agreed upon by the participants of
     Steph Sallum's masking & kernel-phase hackathon in 2021 and is defined
     here:
         https://docs.google.com/document/d/1iBbcCYiq9J2PpLSr21-xB4AXP8X_6tSszxnHY1VDGXg/edit?usp=sharing
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline step.
         """
-        
+
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
         self.instrume_allowed = ['NIRCAM', 'NIRISS']
-        self.bmax = None # m
-        
-        pass
-    
+        self.bmax = None  # m
+
     def step(self,
              file,
              suffix,
@@ -750,7 +684,7 @@ class extract_kerphase():
              window_frames_obj):
         """
         Run the pipeline step.
-        
+
         Parameters
         ----------
         file: str
@@ -765,44 +699,26 @@ class extract_kerphase():
         window_frames_obj: obj
             Object of window_frames class.
         """
-        
+
         print('--> Running extract kerphase step...')
-        
+
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
-        try:
-            data = hdul['SCI-MOD'].data
-            erro = hdul['ERR-MOD'].data
-        except:
-            data = hdul['SCI'].data
-            erro = hdul['ERR'].data
-        if (data.ndim not in [2, 3]):
-            raise UserWarning('Only implemented for 2D image/3D data cube')
-        sy, sx = data.shape[-2:]
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
+        data, erro, sx, sy = ut.get_data(hdul)
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
         if (INSTRUME == 'NIRCAM'):
             CHANNEL = hdul[0].header['CHANNEL']
-            PSCALE = pscale[INSTRUME+'_'+CHANNEL] # mas
+            PSCALE = pscale[INSTRUME+'_'+CHANNEL]  # mas
         else:
-            PSCALE = pscale[INSTRUME] # mas
-        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY'] # deg, counter-clockwise
-        sh = 10 # pix
-        
+            PSCALE = pscale[INSTRUME]  # mas
+        V3I_YANG = -hdul['SCI'].header['V3I_YANG']*hdul['SCI'].header['VPARITY']  # deg, counter-clockwise
+        sh = 10  # pix
+
         # Suffix for the file path from the current step.
         suffix_out = '_kpfits'
-        
+
         # Check if instrument and filter are known.
         if (INSTRUME not in self.instrume_allowed):
             raise UserWarning('Unknown instrument')
@@ -813,25 +729,25 @@ class extract_kerphase():
                 filter_allowed = wave_niriss.keys()
         if (FILTER not in filter_allowed):
             raise UserWarning('Unknown filter')
-        
+
         # Get pupil model path and filter effective wavelength and width.
         if (INSTRUME == 'NIRCAM'):
             path = os.path.realpath(__file__)
             temp = path.rfind('/')
             fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
-            wave = wave_nircam[FILTER]*1e-6 # m
-            weff = weff_nircam[FILTER]*1e-6 # m
+            wave = wave_nircam[FILTER]*1e-6  # m
+            weff = weff_nircam[FILTER]*1e-6  # m
         elif (INSTRUME == 'NIRISS'):
             path = os.path.realpath(__file__)
             temp = path.rfind('/')
             fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
-            wave = wave_niriss[FILTER]*1e-6 # m
-            weff = weff_niriss[FILTER]*1e-6 # m
-        
+            wave = wave_niriss[FILTER]*1e-6  # m
+            weff = weff_niriss[FILTER]*1e-6  # m
+
         print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
-        
+
         # Rotate pupil model.
-        theta = np.deg2rad(V3I_YANG) # rad
+        theta = np.deg2rad(V3I_YANG)  # rad
         rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
         hdul_pup = pyfits.open(fname)
         xxc = hdul_pup['APERTURE'].data['XXC']
@@ -845,22 +761,22 @@ class extract_kerphase():
         txtfile = open('pupil_model.txt', 'w')
         txtfile.write(txt)
         txtfile.close()
-        
+
         # Load pupil model.
         KPO = kpo.KPO(fname='pupil_model.txt',
                       array=None,
                       ndgt=5,
                       bmax=self.bmax,
                       ID='')
-        
+
         # Re-center, window, and extract kernel-phase.
-        if (window_frames_obj.skip == False):
-            wrad = window_frames_obj.wrad # pix
+        if not window_frames_obj.skip:
+            wrad = window_frames_obj.wrad  # pix
             if (wrad is None):
-                wrad = min(40, sx//4) # pix
+                wrad = min(40, sx//4)  # pix
         else:
-            wrad = None # pix
-        if (recenter_frames_obj.skip == False):
+            wrad = None  # pix
+        if not recenter_frames_obj.skip:
             if (recenter_frames_obj.method not in recenter_frames_obj.method_allowed):
                 raise UserWarning('Unknown re-centering method')
             else:
@@ -907,23 +823,16 @@ class extract_kerphase():
                                                  recenter=False,
                                                  wrad=wrad,
                                                  method='LDFT1')
-        
+
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
-        
-        if (recenter_frames_obj.skip == False):
+        path = ut.get_output_base(file, output_dir=output_dir)
+
+        if not recenter_frames_obj.skip:
             if ('FPNM' in recenter_frames_obj.method):
                 m2pix = core.mas2rad(PSCALE)*sx/wave
             else:
                 m2pix = None
-            
+
             # Re-center.
             if (data.ndim == 2):
                 data_recentered = core.recenter(data,
@@ -972,13 +881,13 @@ class extract_kerphase():
                                          m2pix=m2pix,
                                          bmax=recenter_frames_obj.bmax)
                     erro_recentered += [temp]
-                    
+
                     print('Image shift = (%.2f, %.2f)' % (dx[i], dy[i]))
                 data_recentered = np.array(data_recentered)
                 erro_recentered = np.array(erro_recentered)
-            
+
             # Plot.
-            if (recenter_frames_obj.plot == True):
+            if recenter_frames_obj.plot:
                 suffix_tmp = '_recentered'
                 plt.ioff()
                 f, ax = plt.subplots(2, 2, figsize=(1.5*6.4, 1.5*4.8))
@@ -1044,36 +953,36 @@ class extract_kerphase():
                 plt.suptitle('Recenter frames step', size=18)
                 plt.tight_layout()
                 plt.savefig(path+suffix_tmp+'.pdf')
-                if (show_plots == True):
+                if show_plots:
                     plt.show()
                 plt.close()
-            
+
             # Save FITS file.
             try:
                 hdul['SCI-MOD'].data = data_recentered
                 hdul['ERR-MOD'].data = erro_recentered
-            except:
+            except Exception:
                 hdu_sci_mod = pyfits.ImageHDU(data_recentered)
                 hdu_sci_mod.header['EXTNAME'] = 'SCI-MOD'
                 hdu_err_mod = pyfits.ImageHDU(erro_recentered)
                 hdu_err_mod.header['EXTNAME'] = 'ERR-MOD'
                 hdul += [hdu_sci_mod, hdu_err_mod]
             if (data.ndim == 2):
-                xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array([dx])) # pix
-                ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array([dy])) # pix
+                xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array([dx]))  # pix
+                ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array([dy]))  # pix
             else:
-                xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array(dx)) # pix
-                ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array(dy)) # pix
+                xsh = pyfits.Column(name='XSHIFT', format='D', array=np.array(dx))  # pix
+                ysh = pyfits.Column(name='YSHIFT', format='D', array=np.array(dy))  # pix
             hdu_ims = pyfits.BinTableHDU.from_columns([xsh, ysh])
             hdu_ims.header['EXTNAME'] = 'IMSHIFT'
             hdul += [hdu_ims]
-        
+
         else:
             data_recentered = data.copy()
             erro_recentered = erro.copy()
-        
-        if (window_frames_obj.skip == False):
-            
+
+        if not window_frames_obj.skip:
+
             # Window.
             data_windowed = data_recentered.copy()
             erro_windowed = erro_recentered.copy()
@@ -1083,9 +992,9 @@ class extract_kerphase():
                                       between_pix=False)
             data_windowed *= sgmask
             erro_windowed *= sgmask
-            
+
             # Plot.
-            if (window_frames_obj.plot == True):
+            if window_frames_obj.plot:
                 suffix_tmp = '_windowed'
                 plt.ioff()
                 f, ax = plt.subplots(1, 2, figsize=(1.5*6.4, 0.75*4.8))
@@ -1112,17 +1021,17 @@ class extract_kerphase():
                 plt.suptitle('Window frames step', size=18)
                 plt.tight_layout()
                 plt.savefig(path+suffix_tmp+'.pdf')
-                if (show_plots == True):
+                if show_plots:
                     plt.show()
                 plt.close()
-            
+
             # Save FITS file.
             try:
                 hdul['SCI-MOD'].data = data_windowed
                 hdul['SCI-MOD'].header['WRAD'] = wrad
                 hdul['ERR-MOD'].data = erro_windowed
                 hdul['ERR-MOD'].header['WRAD'] = wrad
-            except:
+            except Exception:
                 hdu_sci_mod = pyfits.ImageHDU(data_windowed)
                 hdu_sci_mod.header['EXTNAME'] = 'SCI-MOD'
                 hdu_sci_mod.header['WRAD'] = wrad
@@ -1134,11 +1043,11 @@ class extract_kerphase():
             hdu_win.header['EXTNAME'] = 'WINMASK'
             hdu_win.header['WRAD'] = wrad
             hdul += [hdu_win]
-        
+
         else:
             data_windowed = data_recentered.copy()
             erro_windowed = erro_recentered.copy()
-        
+
         # Extract kernel-phase covariance.
         if (data.ndim == 2):
             frame = data_windowed.copy()
@@ -1161,9 +1070,9 @@ class extract_kerphase():
             kpcov = np.array(kpcov)
             kpsig = np.array(kpsig)
             kpcor = np.array(kpcor)
-        
+
         # Plot.
-        if (self.plot == True):
+        if self.plot:
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
             plt.ioff()
             f, ax = plt.subplots(2, 2, figsize=(1.5*6.4, 1.5*4.8))
@@ -1212,28 +1121,28 @@ class extract_kerphase():
             plt.suptitle('Extract kerphase step', size=18)
             plt.tight_layout()
             plt.savefig(path+suffix_out+'.pdf')
-            if (show_plots == True):
+            if show_plots:
                 plt.show()
             plt.close()
-        
+
         # Save FITS file.
-        hdul[0].header['PSCALE'] = PSCALE # mas
+        hdul[0].header['PSCALE'] = PSCALE  # mas
         if ('NIRCAM' in hdul[0].header['INSTRUME']):
-            hdul[0].header['GAIN'] = gain[hdul[0].header['INSTRUME']+'_'+hdul[0].header['CHANNEL']] # e-/ADU
+            hdul[0].header['GAIN'] = gain[hdul[0].header['INSTRUME']+'_'+hdul[0].header['CHANNEL']]  # e-/ADU
         else:
-            hdul[0].header['GAIN'] = gain[hdul[0].header['INSTRUME']] # e-/ADU
-        hdul[0].header['DIAM'] = 6.559348 # m (flat-to-flat)
-        hdul[0].header['EXPTIME'] = hdul[0].header['EFFINTTM'] # s
-        hdul[0].header['DATEOBS'] = hdul[0].header['DATE-OBS']+'T'+hdul[0].header['TIME-OBS'] # YYYY-MM-DDTHH:MM:SS.MMM
+            hdul[0].header['GAIN'] = gain[hdul[0].header['INSTRUME']]  # e-/ADU
+        hdul[0].header['DIAM'] = 6.559348  # m (flat-to-flat)
+        hdul[0].header['EXPTIME'] = hdul[0].header['EFFINTTM']  # s
+        hdul[0].header['DATEOBS'] = hdul[0].header['DATE-OBS']+'T'+hdul[0].header['TIME-OBS']  # YYYY-MM-DDTHH:MM:SS.MMM
         hdul[0].header['PROCSOFT'] = 'CALWEBB_KPI3'
         try:
-            hdul[0].header['WRAD'] = hdul['WINMASK'].header['WRAD'] # pix
-        except:
-            hdul[0].header['WRAD'] = 'NONE' # pix
+            hdul[0].header['WRAD'] = hdul['WINMASK'].header['WRAD']  # pix
+        except Exception:
+            hdul[0].header['WRAD'] = 'NONE'  # pix
         hdul[0].header['CALFLAG'] = 'False'
         hdul[0].header['CONTENT'] = 'KPFITS1'
-        xy1 = pyfits.Column(name='XXC', format='D', array=KPO.kpi.VAC[:, 0]) # m
-        xy2 = pyfits.Column(name='YYC', format='D', array=KPO.kpi.VAC[:, 1]) # m
+        xy1 = pyfits.Column(name='XXC', format='D', array=KPO.kpi.VAC[:, 0])  # m
+        xy2 = pyfits.Column(name='YYC', format='D', array=KPO.kpi.VAC[:, 1])  # m
         trm = pyfits.Column(name='TRM', format='D', array=KPO.kpi.TRM)
         hdu_ape = pyfits.BinTableHDU.from_columns([xy1, xy2, trm])
         hdu_ape.header['EXTNAME'] = 'APERTURE'
@@ -1241,8 +1150,8 @@ class extract_kerphase():
         hdu_ape.header['TTYPE2'] = ('YYC', 'Virtual aperture y-coord (meters)')
         hdu_ape.header['TTYPE3'] = ('TRM', 'Virtual aperture transmission (0 < t <= 1)')
         hdul += [hdu_ape]
-        uv1 = pyfits.Column(name='UUC', format='D', array=KPO.kpi.UVC[:, 0]) # m
-        uv2 = pyfits.Column(name='VVC', format='D', array=KPO.kpi.UVC[:, 1]) # m
+        uv1 = pyfits.Column(name='UUC', format='D', array=KPO.kpi.UVC[:, 0])  # m
+        uv2 = pyfits.Column(name='VVC', format='D', array=KPO.kpi.UVC[:, 1])  # m
         red = pyfits.Column(name='RED', format='I', array=KPO.kpi.RED)
         hdu_uvp = pyfits.BinTableHDU.from_columns([uv1, uv2, red])
         hdu_uvp.header['EXTNAME'] = 'UV-PLANE'
@@ -1257,32 +1166,32 @@ class extract_kerphase():
         hdu_blm.header['EXTNAME'] = 'BLM-MAT'
         hdul += [hdu_blm]
         if (data.ndim == 2):
-            hdu_kpd = pyfits.ImageHDU(KPO.KPDT[0][np.newaxis, :]) # rad
+            hdu_kpd = pyfits.ImageHDU(KPO.KPDT[0][np.newaxis, :])  # rad
         else:
-            hdu_kpd = pyfits.ImageHDU(np.array(KPO.KPDT)) # rad
+            hdu_kpd = pyfits.ImageHDU(np.array(KPO.KPDT))  # rad
         hdu_kpd.header['EXTNAME'] = 'KP-DATA'
         hdul += [hdu_kpd]
         if (data.ndim == 2):
-            hdu_kpe = pyfits.ImageHDU(kpsig[np.newaxis, np.newaxis, :]) # rad
+            hdu_kpe = pyfits.ImageHDU(kpsig[np.newaxis, np.newaxis, :])  # rad
         else:
-            hdu_kpe = pyfits.ImageHDU(kpsig[:, np.newaxis, :]) # rad
+            hdu_kpe = pyfits.ImageHDU(kpsig[:, np.newaxis, :])  # rad
         hdu_kpe.header['EXTNAME'] = 'KP-SIGM'
         hdul += [hdu_kpe]
         if (data.ndim == 2):
-            hdu_kpc = pyfits.ImageHDU(kpcov[np.newaxis, np.newaxis, :]) # rad^2
+            hdu_kpc = pyfits.ImageHDU(kpcov[np.newaxis, np.newaxis, :])  # rad^2
         else:
-            hdu_kpc = pyfits.ImageHDU(kpcov[:, np.newaxis, :]) # rad^2
+            hdu_kpc = pyfits.ImageHDU(kpcov[:, np.newaxis, :])  # rad^2
         hdu_kpc.header['EXTNAME'] = 'KP-COV'
         hdul += [hdu_kpc]
-        cwavel = pyfits.Column(name='CWAVEL', format='D', array=np.array([wave])) # m
-        dwavel = pyfits.Column(name='DWAVEL', format='D', array=np.array([weff/2.])) # m
+        cwavel = pyfits.Column(name='CWAVEL', format='D', array=np.array([wave]))  # m
+        dwavel = pyfits.Column(name='DWAVEL', format='D', array=np.array([weff/2.]))  # m
         hdu_lam = pyfits.BinTableHDU.from_columns([cwavel, dwavel])
         hdu_lam.header['EXTNAME'] = 'CWAVEL'
         hdul += [hdu_lam]
         if (data.ndim == 2):
-            hdu_ang = pyfits.ImageHDU(np.array([hdul['SCI'].header['ROLL_REF']])) # deg
+            hdu_ang = pyfits.ImageHDU(np.array([hdul['SCI'].header['ROLL_REF']]))  # deg
         else:
-            hdu_ang = pyfits.ImageHDU(np.array([hdul['SCI'].header['ROLL_REF']]*data.shape[0])) # deg
+            hdu_ang = pyfits.ImageHDU(np.array([hdul['SCI'].header['ROLL_REF']]*data.shape[0]))  # deg
         hdu_ang.header['EXTNAME'] = 'DETPA'
         hdul += [hdu_ang]
         if (data.ndim == 2):
@@ -1296,35 +1205,34 @@ class extract_kerphase():
         hdul += [hdu_vis]
         hdul.writeto(path+suffix_out+'.fits', output_verify='fix', overwrite=True)
         hdul.close()
-        
+
         print('Done')
-        
+
         return suffix_out
+
 
 class empirical_uncertainties():
     """
     Compute empirical uncertainties for the kernel-phase.
     """
-    
+
     def __init__(self):
         """
         Initialize the pipeline step.
         """
-        
+
         # Initialize the step parameters.
         self.skip = False
         self.plot = True
         self.get_emp_err = True
-        
-        pass
-    
+
     def step(self,
              file,
              suffix,
              output_dir):
         """
         Run the pipeline step.
-        
+
         Parameters
         ----------
         file: str
@@ -1335,21 +1243,11 @@ class empirical_uncertainties():
         output_dir: str
             Output directory.
         """
-        
+
         print('--> Running empirical uncertainties step...')
-        
+
         # Open FITS file.
-        if (suffix == ''):
-            hdul = pyfits.open(file[:-5]+suffix+'.fits')
-        else:
-            if (output_dir is None):
-                hdul = pyfits.open(file[:-5]+suffix+'.fits')
-            else:
-                temp = file.rfind('/')
-                if (temp == -1):
-                    hdul = pyfits.open(output_dir+file[:-5]+suffix+'.fits')
-                else:
-                    hdul = pyfits.open(output_dir+file[temp+1:-5]+suffix+'.fits')
+        hdul = ut.open_fits(file, suffix=suffix, dirpath=output_dir)
         kpdat = hdul['KP-DATA'].data
         kpsig = hdul['KP-SIGM'].data
         kpcov = hdul['KP-COV'].data
@@ -1358,19 +1256,19 @@ class empirical_uncertainties():
         if (kpdat.shape[0] < 3):
             print('Not enough frames to estimate uncertainties empirically, skipping step!')
             return suffix
-        
+
         # Suffix for the file path from the current step.
         suffix_out = '_emp_kpfits'
-        
-        # 
+
+        #
         nframe = kpdat.shape[0]
         nwave = kpdat.shape[1]
         nkp = kpdat.shape[2]
         wmdat = np.zeros((1, nwave, nkp))
         wmsig = np.zeros((1, nwave, nkp))
         wmcov = np.zeros((1, nwave, nkp, nkp))
-        emsig = np.zeros((1, nwave, nkp)) # empirical uncertainties
-        emcov = np.zeros((1, nwave, nkp, nkp)) # empirical uncertainties
+        emsig = np.zeros((1, nwave, nkp))  # empirical uncertainties
+        emcov = np.zeros((1, nwave, nkp, nkp))  # empirical uncertainties
         for i in range(nwave):
             invcov = []
             invcovdat = []
@@ -1383,25 +1281,18 @@ class empirical_uncertainties():
             emsig[0, i] = np.std(kpdat[:, i], axis=0)
             wmcor = np.true_divide(wmcov[0, i], wmsig[0, i][:, None]*wmsig[0, i][None, :])
             emcov[0, i] = np.multiply(wmcor, emsig[0, i][:, None]*emsig[0, i][None, :])
-        
+
         # Find output file path.
-        if (output_dir is None):
-            path = file[:-5]
-        else:
-            temp = file.rfind('/')
-            if (temp == -1):
-                path = output_dir+file[:-5]
-            else:
-                path = output_dir+file[temp+1:-5]
-        
+        path = ut.get_output_base(file, output_dir=output_dir)
+
         # Plot.
-        if (self.plot == True):
+        if self.plot:
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
             plt.ioff()
             f = plt.figure()
             ax = plt.gca()
             ax.fill_between(np.arange(nkp), np.min(kpdat[:, 0], axis=0), np.max(kpdat[:, 0], axis=0), ec='None', fc=colors[0], alpha=1./3., label='Min/max range')
-            if (self.get_emp_err == True):
+            if self.get_emp_err:
                 ax.errorbar(np.arange(nkp), wmdat[0, 0], yerr=emsig[0, 0], color=colors[0], label='Weighted mean')
             else:
                 ax.errorbar(np.arange(nkp), wmdat[0, 0], yerr=wmsig[0, 0], color=colors[0], label='Weighted mean')
@@ -1415,13 +1306,13 @@ class empirical_uncertainties():
             plt.suptitle('Empirical uncertainties step', size=18)
             plt.tight_layout()
             plt.savefig(path+suffix_out+'.pdf')
-            if (show_plots == True):
+            if show_plots:
                 plt.show()
             plt.close()
-        
+
         # Save FITS file.
         hdul['KP-DATA'].data = wmdat
-        if (self.get_emp_err == True):
+        if self.get_emp_err:
             hdul['KP-SIGM'].data = emsig
             hdul['KP-COV'].data = emcov
         else:
@@ -1429,7 +1320,7 @@ class empirical_uncertainties():
             hdul['KP-COV'].data = wmcov
         hdul.writeto(path+suffix_out+'.fits', output_verify='fix', overwrite=True)
         hdul.close()
-        
+
         print('Done')
-        
+
         return suffix_out
