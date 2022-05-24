@@ -10,6 +10,7 @@ import astropy.io.fits as pyfits
 import matplotlib.pyplot as plt
 import numpy as np
 
+import sys
 import os
 
 import matplotlib.patheffects as PathEffects
@@ -366,15 +367,17 @@ class recenter_frames():
 
             # Get pupil model path and filter effective wavelength and width.
             if (INSTRUME == 'NIRCAM'):
-                path = os.path.realpath(__file__)
-                temp = path.rfind('/')
-                fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
+                fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'nircam_clear_pupil.fits')
+                # path = os.path.realpath(__file__)
+                # temp = path.rfind('/')
+                # fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
                 wave = wave_nircam[FILTER]*1e-6  # m
                 weff = weff_nircam[FILTER]*1e-6  # m
             elif (INSTRUME == 'NIRISS'):
-                path = os.path.realpath(__file__)
-                temp = path.rfind('/')
-                fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
+                fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'niriss_clear_pupil.fits')
+                # path = os.path.realpath(__file__)
+                # temp = path.rfind('/')
+                # fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
                 wave = wave_niriss[FILTER]*1e-6  # m
                 weff = weff_niriss[FILTER]*1e-6  # m
 
@@ -791,15 +794,17 @@ class extract_kerphase():
 
         # Get pupil model path and filter effective wavelength and width.
         if (INSTRUME == 'NIRCAM'):
-            path = os.path.realpath(__file__)
-            temp = path.rfind('/')
-            fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
+            fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'nircam_clear_pupil.fits')
+            # path = os.path.realpath(__file__)
+            # temp = path.rfind('/')
+            # fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
             wave = wave_nircam[FILTER]*1e-6  # m
             weff = weff_nircam[FILTER]*1e-6  # m
         elif (INSTRUME == 'NIRISS'):
-            path = os.path.realpath(__file__)
-            temp = path.rfind('/')
-            fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
+            fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'niriss_clear_pupil.fits')
+            # path = os.path.realpath(__file__)
+            # temp = path.rfind('/')
+            # fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
             wave = wave_niriss[FILTER]*1e-6  # m
             weff = weff_niriss[FILTER]*1e-6  # m
 
