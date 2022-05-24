@@ -385,24 +385,24 @@ class recenter_frames():
 
             print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
 
-            # Rotate pupil model.
-            theta = np.deg2rad(V3I_YANG)  # rad
-            rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-            hdul_pup = pyfits.open(fname)
-            xxc = hdul_pup['APERTURE'].data['XXC']
-            yyc = hdul_pup['APERTURE'].data['YYC']
-            trm = hdul_pup['APERTURE'].data['TRM']
-            hdul_pup.close()
-            txt = ''
-            for i in range(len(trm)):
-                temp = rot.dot(np.array([xxc[i], yyc[i]]))
-                txt += '%+.5f %+.5f %.5f\n' % (temp[0], temp[1], trm[i])
-            txtfile = open('pupil_model.txt', 'w')
-            txtfile.write(txt)
-            txtfile.close()
+            # # Rotate pupil model.
+            # theta = np.deg2rad(V3I_YANG)  # rad
+            # rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+            # hdul_pup = pyfits.open(fname)
+            # xxc = hdul_pup['APERTURE'].data['XXC']
+            # yyc = hdul_pup['APERTURE'].data['YYC']
+            # trm = hdul_pup['APERTURE'].data['TRM']
+            # hdul_pup.close()
+            # txt = ''
+            # for i in range(len(trm)):
+            #     temp = rot.dot(np.array([xxc[i], yyc[i]]))
+            #     txt += '%+.5f %+.5f %.5f\n' % (temp[0], temp[1], trm[i])
+            # txtfile = open('pupil_model.txt', 'w')
+            # txtfile.write(txt)
+            # txtfile.close()
 
             # Load pupil model.
-            KPO = kpo.KPO(fname='pupil_model.txt',
+            KPO = kpo.KPO(fname=fname,
                           array=None,
                           ndgt=5,
                           bmax=self.bmax,
@@ -814,24 +814,24 @@ class extract_kerphase():
 
         print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
 
-        # Rotate pupil model.
-        theta = np.deg2rad(V3I_YANG)  # rad
-        rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
-        hdul_pup = pyfits.open(fname)
-        xxc = hdul_pup['APERTURE'].data['XXC']
-        yyc = hdul_pup['APERTURE'].data['YYC']
-        trm = hdul_pup['APERTURE'].data['TRM']
-        hdul_pup.close()
-        txt = ''
-        for i in range(len(trm)):
-            temp = rot.dot(np.array([xxc[i], yyc[i]]))
-            txt += '%+.5f %+.5f %.5f\n' % (temp[0], temp[1], trm[i])
-        txtfile = open('pupil_model.txt', 'w')
-        txtfile.write(txt)
-        txtfile.close()
+        # # Rotate pupil model.
+        # theta = np.deg2rad(V3I_YANG)  # rad
+        # rot = np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+        # hdul_pup = pyfits.open(fname)
+        # xxc = hdul_pup['APERTURE'].data['XXC']
+        # yyc = hdul_pup['APERTURE'].data['YYC']
+        # trm = hdul_pup['APERTURE'].data['TRM']
+        # hdul_pup.close()
+        # txt = ''
+        # for i in range(len(trm)):
+        #     temp = rot.dot(np.array([xxc[i], yyc[i]]))
+        #     txt += '%+.5f %+.5f %.5f\n' % (temp[0], temp[1], trm[i])
+        # txtfile = open('pupil_model.txt', 'w')
+        # txtfile.write(txt)
+        # txtfile.close()
 
         # Load pupil model.
-        KPO = kpo.KPO(fname='pupil_model.txt',
+        KPO = kpo.KPO(fname=fname,
                       array=None,
                       ndgt=5,
                       bmax=self.bmax,
