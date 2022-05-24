@@ -20,6 +20,12 @@ setup(name='xara',
           'numpy', 'scipy', 'matplotlib', 'astropy'
       ],
       scripts=["bin/ker_model_builder"],
-      data_files=[('config', ['config/discretizor.ui'])],
+      data_files=[
+          ('config', ['config/discretizor.ui']),
+          ("xara_jwst_pupils",
+              ["jwst/nircam_clear_pupil.fits",
+               "jwst/niriss_clear_pupil.fits",
+               "jwst/niriss_nrm_pupil.fits"])
+      ],
       include_package_data=True,
       zip_safe=False)

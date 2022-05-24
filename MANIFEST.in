@@ -2,3 +2,4 @@ include README.rst
 include xara/*.txt
 include xara/bin/*
 include xara/*.fits.gz
+include jwst/*pupil.fits
