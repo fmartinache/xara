@@ -288,6 +288,7 @@ class recenter_frames():
         self.instrume_allowed = ['NIRCAM', 'NIRISS']
         self.crop = False
         self.bmax = 6.  # m
+        self.pupil_path = None
 
     def step(self,
              file,
@@ -317,29 +318,27 @@ class recenter_frames():
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
 
-        if self.crop:
-            if INSTRUME != "NIRISS":
-                raise NotImplementedError("Cropping is implemented for NIRISS only.")
-            # Copied from NIRISS bad pixel correction script
-            # TODO: Handle 2d data
+        # Copied from bad pixel cleaning script.
+        if (self.crop == True):
+            if (INSTRUME != 'NIRISS'):
+                raise NotImplementedError('Cropping is implemented for NIRISS only')
+            if (data.ndim != 3):
+                raise NotImplementedError('Cropping is implemented for 3D data cube only')
             ww_max = []
-            for j in range(data.shape[0]):
-                ww_max += [
-                    np.unravel_index(
-                        np.argmax(median_filter(data[j], size=3)), data[j].shape
-                    )
-                ]
+            for i in range(data.shape[0]):
+                ww_max += [np.unravel_index(np.argmax(median_filter(data[i], size=3)), data[i].shape)]
             ww_max = np.array(ww_max)
-            # the bottom 4 rows are reference pixels
-            yh = min(sy - np.max(ww_max[:, 0]), np.min(ww_max[:, 0]) - 4)
-            xh = min(sx - np.max(ww_max[:, 1]), np.min(ww_max[:, 1]) - 0)
+
+            # The bottom four rows are reference pixels.
+            yh = min(sy-np.max(ww_max[:, 0]), np.min(ww_max[:, 0])-4)
+            xh = min(sx-np.max(ww_max[:, 1]), np.min(ww_max[:, 1])-0)
             sh = min(xh, yh)
 
-            print('Cutting all frames to %.0fx%.0f pixels' % (2 * sh, 2 * sh))
-            data = data[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
-            erro = erro[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            print('Cropping all frames to %.0fx%.0f pixels' % (2*sh, 2*sh))
+            data = data[:, ww_max[i, 0]-sh:ww_max[i, 0]+sh, ww_max[i, 1]-sh:ww_max[i, 1]+sh].copy()
+            erro = erro[:, ww_max[i, 0]-sh:ww_max[i, 0]+sh, ww_max[i, 1]-sh:ww_max[i, 1]+sh].copy()
             sy, sx = data.shape[-2:]
-
+        
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
         if (INSTRUME == 'NIRCAM'):
             CHANNEL = hdul[0].header['CHANNEL']
@@ -367,23 +366,27 @@ class recenter_frames():
 
             # Get pupil model path and filter effective wavelength and width.
             if (INSTRUME == 'NIRCAM'):
-                fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'nircam_clear_pupil.fits')
+                if (self.pupil_path is None):
+                    self.pupil_path = 'nircam_clear_pupil.fits'
+                fname = os.path.join(sys.prefix, 'xara_jwst_pupils', self.pupil_path)
                 if not os.path.exists(fname):
                     path = os.path.realpath(__file__)
                     temp = path.rfind('/')
-                    fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
+                    fname = path[:temp]+'/../jwst/'+self.pupil_path
                 wave = wave_nircam[FILTER]*1e-6  # m
                 weff = weff_nircam[FILTER]*1e-6  # m
             elif (INSTRUME == 'NIRISS'):
-                fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'niriss_clear_pupil.fits')
+                if (self.pupil_path is None):
+                    self.pupil_path = 'niriss_clear_pupil.fits'
+                fname = os.path.join(sys.prefix, 'xara_jwst_pupils', self.pupil_path)
                 if not os.path.exists(fname):
                     path = os.path.realpath(__file__)
                     temp = path.rfind('/')
-                    fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
+                    fname = path[:temp]+'/../jwst/'+self.pupil_path
                 wave = wave_niriss[FILTER]*1e-6  # m
                 weff = weff_niriss[FILTER]*1e-6  # m
 
-            print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
+            # print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
 
             # # Rotate pupil model.
             # theta = np.deg2rad(V3I_YANG)  # rad
@@ -713,6 +716,7 @@ class extract_kerphase():
         self.plot = True
         self.instrume_allowed = ['NIRCAM', 'NIRISS']
         self.bmax = None  # m
+        self.pupil_path = None
 
     def step(self,
              file,
@@ -748,27 +752,25 @@ class extract_kerphase():
         INSTRUME = hdul[0].header['INSTRUME']
         FILTER = hdul[0].header['FILTER']
 
-        if recenter_frames_obj.crop:
-            if INSTRUME != "NIRISS":
-                raise NotImplementedError("Cropping is implemented for NIRISS only.")
-            # Copied from NIRISS bad pixel correction script
-            # TODO: Handle 2d data
+        # Copied from bad pixel cleaning script.
+        if (recenter_frames_obj.crop == True):
+            if (INSTRUME != 'NIRISS'):
+                raise NotImplementedError('Cropping is implemented for NIRISS only')
+            if (data.ndim != 3):
+                raise NotImplementedError('Cropping is implemented for 3D data cube only')
             ww_max = []
-            for j in range(data.shape[0]):
-                ww_max += [
-                    np.unravel_index(
-                        np.argmax(median_filter(data[j], size=3)), data[j].shape
-                    )
-                ]
+            for i in range(data.shape[0]):
+                ww_max += [np.unravel_index(np.argmax(median_filter(data[i], size=3)), data[i].shape)]
             ww_max = np.array(ww_max)
-            # the bottom 4 rows are reference pixels
-            yh = min(sy - np.max(ww_max[:, 0]), np.min(ww_max[:, 0]) - 4)
-            xh = min(sx - np.max(ww_max[:, 1]), np.min(ww_max[:, 1]) - 0)
+
+            # The bottom four rows are reference pixels.
+            yh = min(sy-np.max(ww_max[:, 0]), np.min(ww_max[:, 0])-4)
+            xh = min(sx-np.max(ww_max[:, 1]), np.min(ww_max[:, 1])-0)
             sh = min(xh, yh)
 
-            print('Cutting all frames to %.0fx%.0f pixels' % (2 * sh, 2 * sh))
-            data = data[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
-            erro = erro[:, ww_max[j, 0] - sh:ww_max[j, 0] + sh, ww_max[j, 1] - sh:ww_max[j, 1] + sh].copy()
+            print('Cropping all frames to %.0fx%.0f pixels' % (2*sh, 2*sh))
+            data = data[:, ww_max[i, 0]-sh:ww_max[i, 0]+sh, ww_max[i, 1]-sh:ww_max[i, 1]+sh].copy()
+            erro = erro[:, ww_max[i, 0]-sh:ww_max[i, 0]+sh, ww_max[i, 1]-sh:ww_max[i, 1]+sh].copy()
             sy, sx = data.shape[-2:]
 
         # PSCALE = np.sqrt(hdul['SCI'].header['PIXAR_A2'])*1000. # mas
@@ -796,23 +798,27 @@ class extract_kerphase():
 
         # Get pupil model path and filter effective wavelength and width.
         if (INSTRUME == 'NIRCAM'):
-            fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'nircam_clear_pupil.fits')
+            if (self.pupil_path is None):
+                self.pupil_path = 'nircam_clear_pupil.fits'
+            fname = os.path.join(sys.prefix, 'xara_jwst_pupils', self.pupil_path)
             if not os.path.exists(fname):
                 path = os.path.realpath(__file__)
                 temp = path.rfind('/')
-                fname = path[:temp]+'/../jwst/nircam_clear_pupil.fits'
+                fname = path[:temp]+'/../jwst/'+self.pupil_path
             wave = wave_nircam[FILTER]*1e-6  # m
             weff = weff_nircam[FILTER]*1e-6  # m
         elif (INSTRUME == 'NIRISS'):
-            fname = os.path.join(sys.prefix, "xara_jwst_pupils", 'niriss_clear_pupil.fits')
+            if (self.pupil_path is None):
+                self.pupil_path = 'niriss_clear_pupil.fits'
+            fname = os.path.join(sys.prefix, 'xara_jwst_pupils', self.pupil_path)
             if not os.path.exists(fname):
                 path = os.path.realpath(__file__)
                 temp = path.rfind('/')
-                fname = path[:temp]+'/../jwst/niriss_clear_pupil.fits'
+                fname = path[:temp]+'/../jwst/'+self.pupil_path
             wave = wave_niriss[FILTER]*1e-6  # m
             weff = weff_niriss[FILTER]*1e-6  # m
 
-        print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
+        # print('Rotating pupil model by %.2f deg (counter-clockwise)' % V3I_YANG)
 
         # # Rotate pupil model.
         # theta = np.deg2rad(V3I_YANG)  # rad
@@ -1265,9 +1271,9 @@ class extract_kerphase():
         if (data.ndim == 2):
             hdu_vis = pyfits.ImageHDU(np.vstack((np.real(KPO.CVIS[0])[np.newaxis, np.newaxis, :], np.imag(KPO.CVIS[0])[np.newaxis, np.newaxis, :])))
         else:
-            temp = np.zeros((data.shape[0], 2, hdul['KER-MAT'].data.shape[1], hdul['KER-MAT'].data.shape[1]))
-            temp[:, 0, :, :] = np.real(np.array(KPO.CVIS))
-            temp[:, 1, :, :] = np.imag(np.array(KPO.CVIS))
+            temp = np.zeros((data.shape[0], 2, hdul['KER-MAT'].data.shape[1]))
+            temp[:, 0, :] = np.real(np.array(KPO.CVIS)[:, 0, :])
+            temp[:, 1, :] = np.imag(np.array(KPO.CVIS)[:, 0, :])
             hdu_vis = pyfits.ImageHDU(temp)
         hdu_vis.header['EXTNAME'] = 'CVIS-DATA'
         hdul += [hdu_vis]

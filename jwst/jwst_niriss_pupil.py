@@ -19,15 +19,17 @@ from xara import kpi
 step = 0.3 # m, grid step size
 tmin = 1e-1 # minimum transmission for a sub-aperture to be considered
 binary = False # binary or grey mask
-textpath = 'niriss_clear_pupil.txt'
-fitspath = 'niriss_clear_pupil.fits'
+# textpath = 'niriss_clear_pupil.txt'
+# fitspath = 'niriss_clear_pupil.fits'
+textpath = 'niriss_clear_pupil_085_norot.txt'
+fitspath = 'niriss_clear_pupil_085_norot.fits'
 bmax = None
 
 # Load pupil.
 hdul = pyfits.open('MASK_CLEARP.fits')
 aper = hdul[0].data
 pxsc = hdul[0].header['PUPLSCAL'] # m, pupil pixel scale
-pxsc *= 0.9
+pxsc *= 0.85
 
 # Create discrete pupil model using XARA.
 model = create_discrete_model(aper, pxsc, step, binary=binary, tmin=tmin)
