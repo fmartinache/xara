@@ -42,6 +42,8 @@ from astropy.io import fits
 import pickle
 import gzip
 
+from .opticstools import opticstools as ot
+
 
 class KPI(object):
     ''' Fundamental kernel-phase relations
@@ -56,7 +58,7 @@ class KPI(object):
     # =========================================================================
 
     def __init__(self, fname=None, array=None, ndgt=5,
-                 bmax=None, ID=""):
+                 bmax=None, hexa=False, ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -114,7 +116,7 @@ class KPI(object):
                     self.load_aperture_model(fname=fname)
                 except OSError:
                     raise Exception("Not a valid coordinate file")
-                self.rebuild_model(ndgt=ndgt, bmax=bmax)
+                self.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
 
             print("KPI data successfully loaded")
 
@@ -122,7 +124,7 @@ class KPI(object):
             print("Attempting to build KPI from array")
             try:
                 self.load_aperture_model(data=array)
-                self.rebuild_model(ndgt=ndgt, bmax=bmax)
+                self.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
                 self.name = ID
             except:
                 print("Problem using array %s" % (array,))
@@ -175,7 +177,7 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def rebuild_model(self, ndgt=5, bmax=None):
+    def rebuild_model(self, ndgt=5, bmax=None, hexa=False):
         ''' ------------------------------------------------------------------
         Builds or rebuilds the Fourier-phase model, from the information
         provided by the virtual aperture coordinate (VAC) table.
@@ -187,6 +189,8 @@ class KPI(object):
 
         - bmax: a baseline filtering parameter (in meters): if not None,
           baselines larger than bmax are eliminated from the discrete model
+
+        - hexa: if True, masks out noisy baselines using a hexagonal shape
 
         ------------------------------------------------------------------ '''
 
@@ -239,19 +243,36 @@ class KPI(object):
         # 1.5. Special case: baseline filtering
         # -------------------------------------
         if bmax is not None:
-            uv_sampl = self.UVC.copy()   # copy previously identified baselines
-            # uvm = np.abs(self.UVC).max() # max baseline length
+            if hexa:
+                flat_to_flat = 2.*6.5 # m, size is doubled in uv-plane
+                mask = ot.hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
+                uv_sampl = self.UVC.copy()   # copy previously identified baselines
+                # uvm = np.abs(self.UVC).max() # max baseline length
 
-            blength = np.sqrt(np.abs(uv_sampl[:, 0])**2 +
-                              np.abs(uv_sampl[:, 1])**2)
+                xx = uv_sampl[:, 0]/flat_to_flat*512.+512.
+                yy = uv_sampl[:, 1]/flat_to_flat*512.+512.
 
-            keep = (blength < bmax)
-            self.UVC = uv_sampl[keep]
-            self.nbuv = (self.UVC.shape)[0]
+                keep = np.array([mask[int(round(yy[ii])), int(round(xx[ii]))] for ii in range(uv_sampl.shape[0])]) > 0.5
+                self.UVC = uv_sampl[keep]
+                self.nbuv = (self.UVC.shape)[0]
 
-            print("%d baselines were preserved after filtering" % (self.nbuv,))
-            self.BMAX = bmax
-            self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+                print("%d baselines were preserved after filtering" % (self.nbuv,))
+                self.BMAX = bmax
+                self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+            else:
+                uv_sampl = self.UVC.copy()   # copy previously identified baselines
+                # uvm = np.abs(self.UVC).max() # max baseline length
+
+                blength = np.sqrt(np.abs(uv_sampl[:, 0])**2 +
+                                  np.abs(uv_sampl[:, 1])**2)
+
+                keep = (blength < bmax)
+                self.UVC = uv_sampl[keep]
+                self.nbuv = (self.UVC.shape)[0]
+
+                print("%d baselines were preserved after filtering" % (self.nbuv,))
+                self.BMAX = bmax
+                self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         # 2. compute baseline mapping model + redundancy
         # ----------------------------------------------

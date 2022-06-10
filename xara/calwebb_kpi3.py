@@ -13,6 +13,7 @@ import numpy as np
 import sys
 import os
 
+import matplotlib.gridspec as gridspec
 import matplotlib.patheffects as PathEffects
 
 from scipy.ndimage import median_filter
@@ -409,6 +410,7 @@ class recenter_frames():
                           array=None,
                           ndgt=5,
                           bmax=self.bmax,
+                          hexa=True,
                           ID='')
             m2pix = core.mas2rad(PSCALE)*sx/wave
 
@@ -841,6 +843,7 @@ class extract_kerphase():
                       array=None,
                       ndgt=5,
                       bmax=self.bmax,
+                      hexa=True,
                       ID='')
 
         # Re-center, window, and extract kernel-phase.
@@ -1258,8 +1261,8 @@ class extract_kerphase():
         hdu_kpc.header['EXTNAME'] = 'KP-COV'
         hdul += [hdu_kpc]
         cwavel = pyfits.Column(name='CWAVEL', format='D', array=np.array([wave]))  # m
-        dwavel = pyfits.Column(name='DWAVEL', format='D', array=np.array([weff/2.]))  # m
-        hdu_lam = pyfits.BinTableHDU.from_columns([cwavel, dwavel])
+        bwidth = pyfits.Column(name='BWIDTH', format='D', array=np.array([weff]))  # m
+        hdu_lam = pyfits.BinTableHDU.from_columns([cwavel, bwidth])
         hdu_lam.header['EXTNAME'] = 'CWAVEL'
         hdul += [hdu_lam]
         if (data.ndim == 2):
@@ -1299,6 +1302,7 @@ class empirical_uncertainties():
         self.skip = False
         self.plot = True
         self.get_emp_err = True
+        self.get_emp_cor = True
 
     def step(self,
              file,
@@ -1344,6 +1348,10 @@ class empirical_uncertainties():
         wmcov = np.zeros((1, nwave, nkp, nkp))
         emsig = np.zeros((1, nwave, nkp))  # empirical uncertainties
         emcov = np.zeros((1, nwave, nkp, nkp))  # empirical uncertainties
+        emcor = np.zeros((1, nwave, nkp, nkp))  # empirical uncertainties
+        emsig_sample = np.zeros((1, nwave, nkp))  # empirical uncertainties
+        emcov_sample = np.zeros((1, nwave, nkp, nkp))  # empirical uncertainties
+        emcor_sample = np.zeros((1, nwave, nkp, nkp))  # empirical uncertainties
         for i in range(nwave):
             invcov = []
             invcovdat = []
@@ -1356,6 +1364,10 @@ class empirical_uncertainties():
             emsig[0, i] = np.std(kpdat[:, i], axis=0)
             wmcor = np.true_divide(wmcov[0, i], wmsig[0, i][:, None]*wmsig[0, i][None, :])
             emcov[0, i] = np.multiply(wmcor, emsig[0, i][:, None]*emsig[0, i][None, :])
+            emcor[0, i] = wmcor.copy()
+            emcov_sample[0, i] = np.cov(kpdat[:, i].T)
+            emsig_sample[0, i] = np.sqrt(np.diag(emcov_sample[0, i]))
+            emcor_sample[0, i] = np.true_divide(emcov_sample[0, i], emsig_sample[0, i][:, None]*emsig_sample[0, i][None, :])
 
         # Find output file path.
         path = ut.get_output_base(file, output_dir=output_dir)
@@ -1364,8 +1376,19 @@ class empirical_uncertainties():
         if self.plot:
             colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
             plt.ioff()
-            f = plt.figure()
-            ax = plt.gca()
+            gs = gridspec.GridSpec(2, 2)
+            fig = plt.figure(figsize=(2*6.4, 2*4.8))
+            ax = plt.subplot(gs[0, 0])
+            p00 = ax.imshow(emcor[0, 0], origin='lower', cmap='RdBu', vmin=-1., vmax=1.)
+            c00 = plt.colorbar(p00, ax=ax)
+            c00.set_label('Kernel-phase correlation', rotation=270, labelpad=20)
+            ax.set_title('Theoretical estimate', y=1., pad=-20, bbox=dict(facecolor='white', edgecolor='lightgrey', boxstyle='round'))
+            ax = plt.subplot(gs[0, 1])
+            p01 = ax.imshow(emcor_sample[0, 0], origin='lower', cmap='RdBu', vmin=-1., vmax=1.)
+            c01 = plt.colorbar(p01, ax=ax)
+            c01.set_label('Kernel-phase correlation', rotation=270, labelpad=20)
+            ax.set_title('Empirical estimate', y=1., pad=-20, bbox=dict(facecolor='white', edgecolor='lightgrey', boxstyle='round'))
+            ax = plt.subplot(gs[1, :])
             ax.fill_between(np.arange(nkp), np.min(kpdat[:, 0], axis=0), np.max(kpdat[:, 0], axis=0), ec='None', fc=colors[0], alpha=1./3., label='Min/max range')
             if self.get_emp_err:
                 ax.errorbar(np.arange(nkp), wmdat[0, 0], yerr=emsig[0, 0], color=colors[0], label='Weighted mean')
@@ -1388,8 +1411,12 @@ class empirical_uncertainties():
         # Save FITS file.
         hdul['KP-DATA'].data = wmdat
         if self.get_emp_err:
-            hdul['KP-SIGM'].data = emsig
-            hdul['KP-COV'].data = emcov
+            if self.get_emp_cor:
+                hdul['KP-SIGM'].data = emsig_sample
+                hdul['KP-COV'].data = emcov_sample
+            else:
+                hdul['KP-SIGM'].data = emsig
+                hdul['KP-COV'].data = emcov
         else:
             hdul['KP-SIGM'].data = wmsig
             hdul['KP-COV'].data = wmcov

@@ -46,7 +46,7 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, ID=""):
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -56,7 +56,7 @@ class KPO():
 
         # Default instantiation.
         self.kpi = kpi.KPI(fname=fname, array=array,
-                           ndgt=ndgt, bmax=bmax, ID=ID)
+                           ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
 
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
