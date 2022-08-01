@@ -449,16 +449,19 @@ class KPO():
     # =========================================================================
     def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
                                  recenter=False, wrad=None, method="LDFT1"):
-        """ ----------------------------------------------------------------
-        Handles the kernel processing of a single square frame
+        """Handles the kernel processing of a single square frame
 
-        Parameters:
+        Parameters
         ----------
         - frame: the 2D array image to process
         - pscale: the image plate scale (in mas/pixels)
         - cwavel: the central wavelength (in meters)
 
-        ---------------------------------------------------------------- """
+        Note
+        ----
+        Expects the image to have been pre-centered to the nearest integer
+        number of pixels.
+        """
 
         cvis = []    # complex visibility
         kpdata = []  # Kernel-phase data
@@ -767,8 +770,8 @@ class KPO():
             for ii in range(ng):
                 k0 = kpmap[:, ii]
                 tmp = np.dot(np.dot(k0, cov_inv), k0)
-                if tmp < 1e-8:
-                    tmp = 1e-8
+                if tmp < 1e-20:
+                    tmp = 1e-20
                 clim[ii] = tmp**-0.5
         # only variance is available
         else:

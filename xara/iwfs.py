@@ -53,6 +53,32 @@ def fuzzy_intersect1(arr1, arr2, rr=2, single=True):
     return res
 
 
+def opd_grid(opdrange=20, reso=10):
+    ''' -----------------------------------------------------------------------
+    Computes a grid of OPDs to use for the brute force algorithm.
+
+    Parameters:
+    ----------
+    - opdrange : range of OPD to cover (+/- X, in microns)
+    - reso     : resolution of the OPD grid (in nanometers)
+    ----------------------------------------------------------------------- '''
+    nopd = int(2e3*opdrange/reso)
+    return np.round(np.linspace(-opdrange, opdrange, nopd), 3)
+
+
+def precompute_cvis_array(wls, opdgrid):
+    '''-----------------------------------------------------------------------
+    Computes array of complex-vis for bandpasses as a function of OPD.
+
+    Parameters:
+    ----------
+    - wls     : array of bandpass central wavelengths (in microns)
+    - opdgrid : grid of OPDs to precompute (in microns)
+    ----------------------------------------------------------------------- '''
+    cvis = np.exp(-2j*np.pi * np.outer(opdgrid, 1/np.array(wls)))
+    return cvis
+
+
 # =============================================================================
 # =============================================================================
 class IWFS():
@@ -96,6 +122,9 @@ class IWFS():
         self.FF = [None] * self.nl    # Fourier transform arrays
         self.cvis = [None] * self.nl  # complex visibilities
         self.opde = [None] * self.nl  # monochromatic OPD estimates
+
+        self.brute_force = False
+        self.fuzz_reso = 2
 
         # if the file is a complete (kpi + wfd) structure
         # additional data can be loaded.
@@ -226,7 +255,50 @@ class IWFS():
 
     # =========================================================================
     # =========================================================================
-    def get_opd(self):
+    def use_brute_force(self, opdrange=20, reso=10):
+        ''' -------------------------------------------------------------------
+        Modifies the settings of the sensor to use the brute force algo.
+
+        Parameters:
+        ----------
+        - opdrange : the range of OPD (+/- X in microns)
+        - reso     : the resolution of the OPD grid (in nanometers)
+
+        Notes:
+        -----
+        Precomputes two 1-D arrays: test_opds & cvis_opds, to be used later.
+        ------------------------------------------------------------------- '''
+        self.brute_force = True
+        self.test_opds = opd_grid(opdrange, reso)
+        self.test_cvis = precompute_cvis_array(self.cwl*1e6, self.test_opds)
+
+    # =========================================================================
+    # =========================================================================
+    def use_fuzzy_match(self, rr=2):
+        ''' -------------------------------------------------------------------
+        Modifies the settings of the sensor to use the fuzzy matching pattern.
+
+        Parameters:
+        ----------
+        - rr: the rounding error for fuzzy search (default = 2 digits)
+        ------------------------------------------------------------------- '''
+        self.brute_force = False
+        self.fuzz_reso = rr
+
+    # =========================================================================
+    # =========================================================================
+    def get_opd_brute_force(self,):
+        ''' -------------------------------------------------------------------
+        Computes the optical path difference in microns for the provided
+        set of complex visibilities measured at the different wlengths.
+        ------------------------------------------------------------------- '''
+        self.tmp = self.test_cvis.dot(np.array(self.cvis).conj())
+        self.DELTA = self.test_opds[np.argmax(self.tmp, axis=0)]
+        return self.PINV.dot(self.DELTA)
+
+    # =========================================================================
+    # =========================================================================
+    def get_opd_fuzzy_match(self,):
         ''' -------------------------------------------------------------------
         Computes the optical path difference in microns for the provided
         set of complex visibilities measured at the different wlengths.
@@ -237,45 +309,43 @@ class IWFS():
         Currently set to operate with one or two filters but no more! More
         channels will require some kind of recursion.
         ------------------------------------------------------------------- '''
+        if self.nl > 2:
+            print("Can't do that just yet!")
+            return
 
-        if self.nl == 1:  # monochromatic analysis (simple)
-            opd = - self.PINV.dot(self.opde[0])
+        nw = self.nwmax              # local short-hand
+        nuv = self.kpi.nbuv          # local short-hand
+        delta = np.array(self.opde)  # match my earlier notations
+        klambda = np.outer(np.arange(-nw, nw+1), self.cwl) * 1e6
 
-        else:  # polychromatic phase unwrapping
-            if self.nl > 2:
-                print("Can't do that just yet!")
-                return
+        DELTA = np.zeros(nuv)  # True OPDs here
 
-            nw = self.nwmax              # local short-hand
-            nuv = self.kpi.nbuv          # local short-hand
-            delta = np.array(self.opde)  # match my earlier notations
-            klambda = np.outer(np.arange(-nw, nw+1), self.cwl) * 1e6
-
-            DELTA = np.zeros(nuv)  # True OPDs here
-
-            for ii in range(nuv):
-                pval = np.outer(np.ones(2*nw+1), delta[:, ii]) + klambda
-                DELTA[ii] = fuzzy_intersect1(pval[:, 0], pval[:, 1], rr=2, single=True)
-            self.test = DELTA
-            opd = - self.PINV.dot(DELTA)
-        return opd
+        for ii in range(nuv):
+            # print("\rindex = %2d" % (ii,), end="", flush=True)
+            pval = np.outer(np.ones(2*nw+1), delta[:, ii]) + klambda
+            try:
+                DELTA[ii] = fuzzy_intersect1(
+                    pval[:, 0], pval[:, 1], rr=self.fuzz_reso, single=True)
+            except ValueError:
+                DELTA[ii] = 0.0  # ???
+            self.test = DELTA  # for diagnosis by external program
+        return -self.PINV.dot(DELTA)
 
     # =========================================================================
     # =========================================================================
-    def get_opd2(self):
+    def get_opd(self,):
         ''' -------------------------------------------------------------------
         Computes the optical path difference in microns for the provided
-        set of complex visibilities measured at the different wlengths.
-
-        This algorithm uses a pre-computed set of cvis for the different
-        spectral channels as a function of OPD value.
-
-        This is the first approach used for the lab demo of Heimdallr!
+        set of complex visibilities measured at the different wavelengths.
         ------------------------------------------------------------------- '''
 
         if self.nl == 1:  # monochromatic analysis (simple)
             opd = - self.PINV.dot(self.opde[0])
 
         else:  # polychromatic phase unwrapping
-            print("Not implemented yet!")
+            if self.brute_force:
+                opd = self.get_opd_brute_force()
+            else:
+                opd = self.get_opd_fuzzy_match()
         return opd
+
