@@ -797,6 +797,63 @@ def uv_phase_regrid_matrix(UVD, UVS, rad):
     return GG
 
 
+def hexagon(dim, width, interp_edge=True):
+    """This function creates a hexagon.
+
+    Adapted from: https://github.com/mikeireland/opticstools/blob/master/opticstools/utils.py#L164
+    by Mike Ireland under MIT License
+
+    Parameters
+    ----------
+    dim: int
+        Size of the 2D array
+    width: int
+        flat-to-flat width of the hexagon
+
+    Returns
+    -------
+    pupil: float array (sz,sz)
+        2D array hexagonal pupil mask
+    """
+    x = np.arange(dim) - dim / 2.0
+    xy = np.meshgrid(x, x)
+    xx = xy[1]
+    yy = xy[0]
+    hex = np.zeros((dim, dim))
+    scale = 1.5
+    offset = 0.5
+    if interp_edge:
+        # !!! Not fully implemented yet. Need to compute the orthogonal distance
+        # from each line and accurately find fractional area of each pixel.
+        hex = (
+            np.minimum(np.maximum(width / 2 - yy + offset, 0), 1)
+            * np.minimum(np.maximum(width / 2 + yy + offset, 0), 1)
+            * np.minimum(
+                np.maximum((width - np.sqrt(3) * xx - yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width - np.sqrt(3) * xx + yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width + np.sqrt(3) * xx - yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width + np.sqrt(3) * xx + yy + offset) * scale, 0), 1
+            )
+        )
+    else:
+        w = np.where(
+            (yy < width / 2)
+            * (yy > (-width / 2))
+            * (yy < (width - np.sqrt(3) * xx))
+            * (yy > (-width + np.sqrt(3) * xx))
+            * (yy < (width + np.sqrt(3) * xx))
+            * (yy > (-width - np.sqrt(3) * xx))
+        )
+        hex[w] = 1.0
+    return hex
+
+
 # =========================================================================
 def create_discrete_model(apert, ppscale, step, binary=True, tmin=0.8):
     '''------------------------------------------------------------------
