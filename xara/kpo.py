@@ -603,7 +603,7 @@ class KPO():
 
             # KP-DATA HDU
             # -----------
-            kpd_hdu = fits.ImageHDU(self.KPDT[ii].astype(np.float64))
+            kpd_hdu = fits.ImageHDU(self.KPDT[ii].astype(float))
             kpd_hdu.header.add_comment("Kernel-phase data")
             kpd_hdu.header['EXTNAME'] = 'KP-DATA%d' % (ii+1,)
             kpd_hdu.header['TARGET'] = self.TARGET[ii]
@@ -635,7 +635,7 @@ class KPO():
 
         try:
             _ = self.kp_cov
-            kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
+            kcv_hdu = fits.ImageHDU(self.kp_cov.astype(float))
             kcv_hdu.header.add_comment(
                 "Kernel-phase covariance matrix")
             kcv_hdu.header['EXTNAME'] = 'KP-COV'
