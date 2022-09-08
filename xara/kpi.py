@@ -505,7 +505,7 @@ class KPI(object):
     # =========================================================================
 
     def plot_pupil_and_uv(self, xymax=4.0, figsize=(12, 6), plot_redun=False,
-                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0, marker='s'):
+                          cmap=cm.rainbow, ssize=12, lw=0, alpha=1.0, marker='o'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
         --------------------------------------------------------------------
@@ -515,11 +515,11 @@ class KPI(object):
         - xymax: radius of pupil plot in meters           (default=4.0)
         - figsize: matplotlib figure size                 (default=(12,6))
         - plot_redun: bool add the redundancy information (default=False)
-        - cmap: matplotlib colormap                       (default:cm.gray)
+        - cmap: matplotlib colormap                       (default:cm.rainbow)
         - ssize: symbol size                              (default=12)
         - lw:  line width for symbol outline              (default=0)
         - alpha: gamma (transparency)                     (default=1)
-        - maker: matplotlib marker for sub-aperture       (default='s')
+        - maker: matplotlib marker for sub-aperture       (default='o')
         - -------------------------------------------------------------------
         '''
 
