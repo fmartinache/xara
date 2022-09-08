@@ -477,7 +477,7 @@ class KPO():
             self.sgmask = core.super_gauss(isz, isz, wrad)
 
         img = frame.copy()
-        if recenter is True:
+        if recenter:
             ysz, xsz = frame.shape
             (x0, y0) = core.determine_origin(img, mask=self.sgmask,
                                              algo=algo_cent, verbose=False,
