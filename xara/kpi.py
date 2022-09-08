@@ -82,6 +82,7 @@ class KPI(object):
         - ndgt: (integer) number of digits when rounding x,y baselines
         - bmax: length of the max baseline kept in the model (in meters)
         - ID  : (string) give the KPI structure a human readable ID
+        - hexa: (bool) if True, masks out noisy baselines using a hexagonal shape
 
         Remarks:
         -------

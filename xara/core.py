@@ -570,6 +570,18 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
     - subpix: sub-pixel recentering         (boolean, default=True)
     - between: center in between 4 pixels   (boolean, default=False)
     - verbose: display some additional info (boolean, default=True)
+    - return_center: return center coordinate in original image (boolean, default=False)
+    - dxdy: center coordinates to use, origin is found with `algo` if None (Tuple[float], default=None)
+    - mykpo: KPO object, used to determine origin with FPNM (xara.kpo.KPO, default=None)
+    - m2pix: Meter to pixel scaling parameter for FPNM (float, default=None)
+    - bmax: Max baseline (in m) for FPNM (float, default=None)
+
+    Returns:
+    -------
+    - img: The recentered image
+    - If `return_center` is True:
+      + dx_temp: x coordinate of the center in original image
+      + dy_temp: y coordinate of the center in original image
 
     Remarks:
     -------
