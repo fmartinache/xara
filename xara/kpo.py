@@ -525,7 +525,7 @@ class KPO():
         self.KPDT.append(np.array(kpdata))
         self.DETPA.append(np.array(detpa).flatten())
         self.MJDATE.append(np.array(mjdate))
-        if recenter is True:
+        if recenter:
             return dx, dy
         else:
             return

@@ -591,7 +591,7 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
 
     ysz, xsz = im0.shape
 
-    if (dxdy is None):
+    if dxdy is None:
         (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose,
                                     mykpo=mykpo, m2pix=m2pix, bmax=bmax)
 
@@ -645,7 +645,7 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
         offset = np.exp(1j*slope)
         dummy = np.real(shift(ifft(offset * fft(shift(im)))))
         im0 = dummy[oriy:oriy+ysz, orix:orix+xsz]
-    if (return_center == False):
+    if not return_center:
         return im0
     else:
         return im0, dx_temp, dy_temp
