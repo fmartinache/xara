@@ -371,7 +371,7 @@ class KPI(object):
             self._KPM0 = self.KPM.copy()
             self.KPM = np.diag(1/self._KPM_norm).dot(self._KPM0)
         else:
-            self.KPM = self._KPM0.copy()
+            self.KPM = self.KPM.copy()
 
     # =========================================================================
     # =========================================================================
