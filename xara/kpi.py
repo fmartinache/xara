@@ -427,7 +427,7 @@ class KPI(object):
         # ------------------------------------
         tmp = hdulist['UV-PLANE'].data
         self.UVC = np.array([tmp['UUC'], tmp['VVC']]).T
-        self.RED = np.array(tmp['RED']).astype(np.float)
+        self.RED = np.array(tmp['RED']).astype(float)
 
         self.KPM = hdulist['KER-MAT'].data
         self.BLM = hdulist['BLM-MAT'].data
