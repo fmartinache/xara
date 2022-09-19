@@ -19,6 +19,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 from scipy.optimize import leastsq
 from scipy.sparse import diags
 from scipy.interpolate import griddata
@@ -453,13 +454,17 @@ class KPO():
         """ ----------------------------------------------------------------
         Handles the kernel processing of a single square frame
 
-        Parameters:
+        Parameters
         ----------
         - frame: the 2D array image to process
         - pscale: the image plate scale (in mas/pixels)
         - cwavel: the central wavelength (in meters)
 
-        ---------------------------------------------------------------- """
+        Note
+        ----
+        Expects the image to have been pre-centered to the nearest integer
+        number of pixels.
+        """
 
         cvis = []    # complex visibility
         kpdata = []  # Kernel-phase data
@@ -774,8 +779,8 @@ class KPO():
             for ii in range(ng):
                 k0 = kpmap[:, ii]
                 tmp = np.dot(np.dot(k0, cov_inv), k0)
-                if tmp < 1e-8:
-                    tmp = 1e-8
+                if tmp < 1e-20:
+                    tmp = 1e-20
                 clim[ii] = tmp**-0.5
         # only variance is available
         else:
@@ -931,48 +936,64 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
-    def plot_uv_map(self, data=None, sym=True, reso=400, fsize=8, output=True):
+    def scatter_uv_map(self, data, sym=True, title="", cbar=True, fsize=5,
+                       cmap=cm.rainbow, marker='o', ssize=12, lw=0):
         ''' ------------------------------------------------------------------
-        Interpolates a uv-information vector to turn it into a 2D map.
+        Produce a 2D scatter map of data in the Fourier plane.
+
+        Note:
+        ----
+
+        About the *sym* parameter: depending on what you want to display, you
+        need to set this flag to the appropriate state: displaying *phase*
+        requires *sym=False*, since the phase is antisymmetric!
 
         Parameters:
         ----------
 
-        - data: the 1D vector of size self.kpi.nbuv
-        - sym: symmetric or anti-symmetric map?
-        - reso: the resolution of the plot (how many pixels across)
-        - fsize: the size of the figure (in inches)
-        - output: boolean. if True, a maplotlib window will be displayed
+        - data   : the 1D vector of size self.kpi.nbuv
+        - sym    : symmetric or anti-symmetric map      (default=True)
+        - title  : string title to add to the main plot (default="")
+        - cbar   : add a colorbar                       (default=True)
+        - fsize  : figure size in inches                (default=5)
+        - cmap   : matplotlib colormap                  (default=cm.rainbow)
+        - marker : matplotlib marker                    (default='o')
+        - ssize  : marker size                          (default=12)
+        - lw     : line width for symbol outline        (default=0)
         ------------------------------------------------------------------ '''
+        xx, yy = self.kpi.UVC.T
+        xx2, yy2 = np.append(xx, -xx), np.append(yy, -yy)
+        data2 = np.append(data, data) if sym else np.append(data, -data)
 
-        uv = self.kpi.UVC
+        ssz = ssize**2  # symbol size
+        dtitle = "Fourier map" if title is "" else title
 
-        Kinv = np.linalg.pinv(self.kpi.KPM)
+        if not cbar:
+            fig, ax = plt.subplots()
+            fig.set_size_inches(fsize, fsize, forward=True)
+            ax.scatter(xx2, yy2, c=data2, cmap=cmap, s=ssz, marker=marker, lw=lw)
+            ax.set_title(dtitle)
+            ax.set_xlabel("Fourier u-coordinate (meters)")
+            ax.set_ylabel("Fourier v-coordinate (meters)")
+            ax.axis('equal')
 
-        dxy = np.max(np.abs(uv))
-        xi = np.linspace(-dxy, dxy, reso)
-        yi = np.linspace(-dxy, dxy, reso)
-
-        if data is None:
-            data = np.dot(Kinv, self.kpd)
-
-        if sym is True:
-            data2 = data.copy()
         else:
-            data2 = -data
+            fsize2 = np.array([1, 0.1]) * fsize
+            fig, axes = plt.subplots(
+                1, 2, gridspec_kw={'width_ratios': fsize2.tolist()})
+            axes[0].scatter(xx2, yy2, c=data2, cmap=cmap,
+                            s=ssz, marker=marker, lw=lw)
+            axes[0].set_title(dtitle)
+            axes[0].set_xlabel("Fourier u-coordinate (meters)")
+            axes[0].set_ylabel("Fourier v-coordinate (meters)")
+            axes[0].axis('equal')
+            axes[0].set_title(dtitle)
+            foo = cm.ScalarMappable(cmap=cmap)     # for the colorbar
+            foo.set_array(np.append(data, data2))  # prepping the range
+            fig.colorbar(foo, cax=axes[1], orientation='vertical')
 
-        z1 = griddata((np.array([uv[:, 0], -uv[:, 0]]).flatten(),
-                       np.array([uv[:, 1], -uv[:, 1]]).flatten()),
-                      np.array([data, data2]).flatten(),
-                      (xi[None, :], yi[:, None]), method='linear')
-        if output:
-            f1 = plt.figure(figsize=(fsize, fsize))
-            ax1 = f1.add_subplot(111)
-            ax1.imshow(z1)
-            ax1.set_xticks([])
-            ax1.set_yticks([])
-            f1.tight_layout()
-        return (z1)
+        fig.set_tight_layout(True)
+        return fig
 
     # =========================================================================
     # =========================================================================
