@@ -527,7 +527,7 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax=4.0, figsize=(12, 6), plot_redun=False,
+    def plot_pupil_and_uv(self, xymax=None, figsize=(12, 6), plot_redun=False,
                           cmap=cm.rainbow, ssize=12, lw=0, alpha=1.0, marker='o'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
