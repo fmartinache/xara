@@ -41,9 +41,8 @@ import matplotlib.cm as cm
 from astropy.io import fits
 import pickle
 import gzip
-from numpy.linalg import norm
 
-from .core import hexagon
+from .opticstools import opticstools as ot
 
 
 class KPI(object):
@@ -83,7 +82,6 @@ class KPI(object):
         - ndgt: (integer) number of digits when rounding x,y baselines
         - bmax: length of the max baseline kept in the model (in meters)
         - ID  : (string) give the KPI structure a human readable ID
-        - hexa: (bool) if True, masks out noisy baselines using a hexagonal shape
 
         Remarks:
         -------
@@ -247,7 +245,7 @@ class KPI(object):
         if bmax is not None:
             if hexa:
                 flat_to_flat = 2.*6.5 # m, size is doubled in uv-plane
-                mask = hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
+                mask = ot.hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
                 uv_sampl = self.UVC.copy()   # copy previously identified baselines
                 # uvm = np.abs(self.UVC).max() # max baseline length
 
@@ -367,33 +365,13 @@ class KPI(object):
             self.KPM[i, :] = (Vh)[KPhiCol[i], :]
 
         self.KPM = self.KPM.dot(np.diag(self.RED))
+        norm = np.linalg.norm(self.KPM, axis=1)
+        self.KPM = np.divide(self.KPM.T, norm).T
 
         print('first %d singular values for this array:' % (
             min(10, self.nbap-1)))
         print(np.round(S[:10], 5))
         print(self)
-
-        self._KPM_norm = norm(self.KPM, axis=1)
-        self.set_normalize_KPM(True)  # new default setting!
-
-    # =========================================================================
-    # =========================================================================
-
-    def set_normalize_KPM(self, setting=True):
-        ''' ------------------------------------------------------------------
-        Normalize the KP matrix.
-
-        Set in the hope that it'll facilitate the performance comparison of 
-        different models and/or with strictly non-redundant scenarios.
-
-        Keyword argument:
-        setting -- (default True)
-        ------------------------------------------------------------------ '''
-        if setting is True:
-            self._KPM0 = self.KPM.copy()
-            self.KPM = np.diag(1/self._KPM_norm).dot(self._KPM0)
-        else:
-            self.KPM = self.KPM.copy()
 
     # =========================================================================
     # =========================================================================
@@ -451,7 +429,7 @@ class KPI(object):
         # ------------------------------------
         tmp = hdulist['UV-PLANE'].data
         self.UVC = np.array([tmp['UUC'], tmp['VVC']]).T
-        self.RED = np.array(tmp['RED']).astype(float)
+        self.RED = np.array(tmp['RED']).astype(np.float)
 
         self.KPM = hdulist['KER-MAT'].data
         self.BLM = hdulist['BLM-MAT'].data
@@ -527,27 +505,24 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax=None, figsize=(12, 6), plot_redun=False,
-                          cmap=cm.rainbow, ssize=12, lw=0, alpha=1.0, marker='o'):
+    def plot_pupil_and_uv(self, xymax=4.0, figsize=(12, 6), plot_redun=False,
+                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0, marker='s'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
-        Parameters:
+        --------------------------------------------------------------------
+        Options:
         ----------
 
-        - xymax: radius of pupil plot in meters           (default=None)
+        - xymax: radius of pupil plot in meters           (default=4.0)
         - figsize: matplotlib figure size                 (default=(12,6))
         - plot_redun: bool add the redundancy information (default=False)
-        - cmap: matplotlib colormap                       (default:cm.rainbow)
+        - cmap: matplotlib colormap                       (default:cm.gray)
         - ssize: symbol size                              (default=12)
         - lw:  line width for symbol outline              (default=0)
         - alpha: gamma (transparency)                     (default=1)
-        - maker: matplotlib marker for sub-aperture       (default='o')
+        - maker: matplotlib marker for sub-aperture       (default='s')
         - -------------------------------------------------------------------
         '''
-        if xymax is not None:
-            xym = xymax
-        else:
-            xym = np.ceil(np.max(self.VAC[:, :1]) * 2) / 2
 
         f0 = plt.figure(figsize=figsize)
         plt.clf()
@@ -556,7 +531,7 @@ class KPI(object):
         s1, s2 = ssize**2, (ssize/2)**2
         p0 = ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
                          cmap=cmap, alpha=alpha, marker=marker, lw=lw)
-        ax0.axis([-xym, xym, -xym, xym])
+        ax0.axis([-xymax, xymax, -xymax, xymax])
         ax0.set_aspect('equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")
@@ -568,7 +543,7 @@ class KPI(object):
         ax1.scatter(self.UVC[:, 0], self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
 
-        ax1.axis([-2*xym, 2*xym, -2*xym, 2*xym])
+        ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax])
         ax1.set_aspect('equal')
         ax1.set_xlabel("Fourier u-coordinate (meters)")
         ax1.set_ylabel("Fourier v-coordinate (meters)")
