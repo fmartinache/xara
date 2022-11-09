@@ -108,7 +108,7 @@ class KPO():
         # covariance?
         # -----------
         try:
-            test = hdul['KP_COV']
+            test = hdul['KP-COV']
             self.kp_cov = test.data
             print("Covariance data available and loaded")
         except KeyError:
