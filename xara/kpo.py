@@ -108,7 +108,7 @@ class KPO():
         # covariance?
         # -----------
         try:
-            test = hdul['KP_COV']
+            test = hdul['KP-COV']
             self.kp_cov = test.data
             print("Covariance data available and loaded")
         except KeyError:
@@ -545,7 +545,7 @@ class KPO():
         matrix based on an analytical model.
         ------------------------------------------------------------------ '''
         if phi_cov is not None:
-            self.phi_cov = kp_cov
+            self.phi_cov = phi_cov
         else:
             try:
                 _ = self.CVIS[0]
