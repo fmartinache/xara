@@ -545,7 +545,7 @@ class KPO():
         matrix based on an analytical model.
         ------------------------------------------------------------------ '''
         if phi_cov is not None:
-            self.phi_cov = kp_cov
+            self.phi_cov = phi_cov
         else:
             try:
                 _ = self.CVIS[0]
