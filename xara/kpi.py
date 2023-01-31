@@ -42,7 +42,7 @@ from astropy.io import fits
 import pickle
 import gzip
 
-from .opticstools import opticstools as ot
+from .core import hexagon
 
 
 class KPI(object):
@@ -245,7 +245,7 @@ class KPI(object):
         if bmax is not None:
             if hexa:
                 flat_to_flat = 2.*6.5 # m, size is doubled in uv-plane
-                mask = ot.hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
+                mask = hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
                 uv_sampl = self.UVC.copy()   # copy previously identified baselines
                 # uvm = np.abs(self.UVC).max() # max baseline length
 
