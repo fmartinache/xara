@@ -47,7 +47,8 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, ID=""):
+    # TODO: Using KPFITS as default would break backward compat... Could keep default but have warning for few releases? Or just keep legacy as default
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="KPFITS", ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -80,6 +81,32 @@ class KPO():
             print("No KPO data included")
             return
 
+        if input_format.upper() == "LEGACY":
+            self._get_kpo_legacy(hdul)
+        elif input_format.upper() == "KPFITS":
+            self._get_kpo_kpfits(hdul)
+        else:
+            raise ValueError(f"Unknown input format {input_format}")
+
+        # end
+        # ---
+        hdul.close()
+
+    def _get_kpo_kpfits(self, hdul: fits.HDUList):
+        # TODO: Support KP sigma and cov
+        # TODO: Support MJDATE
+        self.KPDT.append(hdul['KP-DATA'].data[0])
+
+        self.PSCALE = hdul[0].header['PSCALE']
+
+        self.CWAVEL = hdul['CWAVEL'].data['CWAVEL']
+        self.BWIDTH = hdul['CWAVEL'].data['BWIDTH']
+
+        self.DETPA.append(hdul['DETPA'].data)
+        cvis_arr = hdul['CVIS-DATA'].data
+        self.CVIS = list(cvis_arr[:, 0, ...] + 1j * cvis_arr[:, 1, ...])
+
+    def _get_kpo_legacy(self, hdul: fits.HDUList):
         # how many data sets are included?
         # -------------------------------
         nbd = 0
@@ -113,9 +140,6 @@ class KPO():
             print("Covariance data available and loaded")
         except KeyError:
             print("No covariance data available")
-        # end
-        # ---
-        hdul.close()
 
     # =========================================================================
     def __del__(self):
