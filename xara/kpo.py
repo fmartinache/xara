@@ -17,6 +17,10 @@
     (hdr)
     -------------------------------------------------------------------- '''
 
+from typing import Union, Optional
+import os
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -595,6 +599,122 @@ class KPO():
                 print("Extract data before computing a covariance")
                 return
             self.kp_cov = np.cov(self.KPDT[0].T)
+
+    def save_as_kpfits(
+        self,
+        fname: Union[str, os.PathLike],
+        img_data: Optional[np.ndarray] = None,
+        cwavel: Optional[float] = None,
+        bwidth: Optional[float] = None,
+        detpa: Optional[float] = None,
+        winmask: Optional[np.ndarray] = None,
+        overwrite: bool = False,
+    ) -> fits.HDUList:
+        '''
+        Export the KPO data structure
+
+        fname: file name where the KPI path is
+        '''
+
+        kpi_fits = self.kpi.package_as_fits()
+
+        hdul = fits.HDUList()
+
+        hdr = fits.Header()
+        hdr['SOFTWARE'] = 'XARA'
+        # TODO: Save same as calwebb stuff
+        # TODO: Save wavelength info
+        hdr['PSCALE'] = self.PSCALE
+        # TODO: If image is hdul, inherit its primary header info
+        if img_data is not None:
+            primary_hdu = fits.PrimaryHDU(img_data, header=hdr)
+        else:
+            primary_hdu = fits.PrimaryHDU(header=hdr)
+        hdul += [primary_hdu]
+        hdul[0].header['EXTEND'] = True  # Enable saving in mulit-extension fits
+
+        # Aperture extension
+        aperture_hdu = kpi_fits['APERTURE']
+        hdul += [aperture_hdu]
+
+        # UV-Plane extension
+        uvplane_hdu = kpi_fits['UV-PLANE']
+        hdul += [uvplane_hdu]
+
+        # Ker-mat extension
+        kermat_hdu = kpi_fits['KER-MAT']
+        hdul += [kermat_hdu]
+
+        # BLM (transmission) matrix extension
+        blm_hdu = kpi_fits['BLM-MAT']
+        hdul += [blm_hdu]
+
+        # Kenrel phase data
+        # Supports only single object
+        kpdt_arr = np.array(self.KPDT)
+        # TODO: This has an extra first dim compared to standard in K22
+        kpdata_hdu = fits.ImageHDU(kpdt_arr)
+        kpdata_hdu.name = 'KP-DATA'
+        hdul += [kpdata_hdu]
+
+        # Kernel phase uncertainties
+        # TODO: Implement support for KP uncertainty
+        kpsigm_hdu = fits.ImageHDU(np.full_like(kpdt_arr, np.nan))
+        kpsigm_hdu.name = 'KP-SIGM'
+        kpsigm_hdu.header['COMMENT'] = 'KP uncertainties not yet implemented'
+        hdul += [kpsigm_hdu]
+
+        # Central wavelength info
+        # TODO: This should probably be handled by KPI or KPO object. Required for extraction
+        cwavel_hdr = fits.Header()
+        if cwavel is None:
+            cwavel = np.nan
+            cwavel_hdr['COMMENT'] = 'cwavel not provided'
+        if bwidth is None:
+            bwidth = np.nan
+            cwavel_hdr['COMMENT'] = 'bwidth not provided'
+        cwavel_hdu = fits.BinTableHDU.from_columns(
+            [
+                fits.Column(name='CWAVEL', format='D', array=np.array([cwavel])),
+                fits.Column(name='BWIDTH', format='D', array=np.array([bwidth])),
+            ],
+            header=cwavel_hdr,
+        )
+        cwavel_hdu.name = 'CWAVEL'
+        hdul += [cwavel_hdu]
+
+        # Position angle of detector (E or N) in degrees
+        detpa = detpa or 0.0
+        detpa_hdu = fits.ImageHDU(np.array([detpa] * kpdt_arr.shape[0]))
+        detpa_hdu.name = 'DETPA'
+        hdul += [detpa_hdu]
+
+        # Complex visibility data
+        # TODO: This has an extra first dim compared to standard in K22
+        cvis_arr = np.array(self.CVIS)
+        cvis_arr = np.stack([cvis_arr.real, cvis_arr.imag], axis=1)
+        cvis_data_hdu = fits.ImageHDU(cvis_arr)
+        cvis_data_hdu.name = 'CVIS-DATA'
+        hdul += [cvis_data_hdu]
+
+        # Windowing mask
+        if hasattr(self, "sgmask") and self.sgmask is not None:
+            if winmask is not None:
+                warnings.warn(
+                    "winmask as passed to save_as_kpfits, but sgmask attribute exists. Saving winmask only.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            else:
+                winmask = self.sgmask
+        if winmask is not None:
+            winmask_hdu = fits.ImageHDU(winmask)
+            winmask_hdu.name = "WINMASK"
+            hdul += [winmask_hdu]
+
+        hdul.writeto(fname, overwrite=overwrite)
+
+        return hdul
 
     # =========================================================================
     # =========================================================================
