@@ -700,9 +700,12 @@ class KPO():
         hdul += [detpa_hdu]
 
         # Complex visibility data
-        # TODO: This has an extra first dim compared to standard in K22
-        cvis_arr = np.array(self.CVIS)
-        cvis_arr = np.stack([cvis_arr.real, cvis_arr.imag], axis=1)
+        # Concatenate all extracted frames along axis 0 (Nf, Nbl)
+        cvis_arr = np.concatenate(self.CVIS)
+        # Split real and imag along axis 0 (2, Nframes, Nbl)
+        cvis_arr = np.stack([cvis_arr.real, cvis_arr.imag], axis=0)
+        # Add wavelength dimension (2, Nf, 1, Nbl)
+        cvis_arr = np.expand_dims(cvis_arr, axis=2)
         cvis_data_hdu = fits.ImageHDU(cvis_arr)
         cvis_data_hdu.name = 'CVIS-DATA'
         hdul += [cvis_data_hdu]
