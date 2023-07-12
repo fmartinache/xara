@@ -592,7 +592,7 @@ class KPI(object):
         hdr['SOFTWARE'] = 'XARA'
         hdr['KPI-ID'] = self.name[:8]
         hdr['GRID'] = (False, "True for integer grid mode")
-        hdr['G-STEP'] = (0.0,   "Used for integer grid mode")
+        hdr['G-STEP'] = (0.0, "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
         try:
             _ = self.BMAX
