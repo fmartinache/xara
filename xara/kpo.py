@@ -654,7 +654,7 @@ class KPO():
         kpdt_arr = np.concatenate(self.KPDT)
         if len(self.KPDT) > 1:
             warnings.warn(
-                "Saving all extracted frames and cubges in a single KPFITS file"
+                "Saving all extracted frames and cubes in a single KPFITS file"
                 " along the 'frame' dimension."
                 " Use separate KPO objects if you want something else.",
                 stacklevel=2,
