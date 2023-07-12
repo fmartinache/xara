@@ -651,7 +651,7 @@ class KPO():
         blm_hdu = kpi_fits['BLM-MAT']
         hdul += [blm_hdu]
 
-        # Kenrel phase data
+        # Kernel phase data
         # Supports only single object
         kpdt_arr = np.concatenate(self.KPDT)
         if len(self.KPDT) > 1:
