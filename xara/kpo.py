@@ -28,8 +28,8 @@ import astropy.io.fits as fits
 from astropy.time import Time
 import copy
 
-from . import core
-from . import kpi
+from xara import core
+from xara import kpi
 
 shift = np.fft.fftshift
 fft = np.fft.fft2
@@ -47,7 +47,7 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, ID=""):
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -57,7 +57,7 @@ class KPO():
 
         # Default instantiation.
         self.kpi = kpi.KPI(fname=fname, array=array,
-                           ndgt=ndgt, bmax=bmax, ID=ID)
+                           ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
 
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
@@ -449,8 +449,10 @@ class KPO():
     # =========================================================================
     # =========================================================================
     def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
-                                 recenter=False, wrad=None, method="LDFT1"):
-        """Handles the kernel processing of a single square frame
+                                 recenter=False, wrad=None, method="LDFT1",
+                                 algo_cent="BCEN", bmax_cent=None):
+        """ ----------------------------------------------------------------
+        Handles the kernel processing of a single square frame
 
         Parameters
         ----------
@@ -480,26 +482,29 @@ class KPO():
             self.sgmask = core.super_gauss(isz, isz, wrad)
 
         img = frame.copy()
-        if recenter is True:
+        if recenter:
             ysz, xsz = frame.shape
             (x0, y0) = core.determine_origin(img, mask=self.sgmask,
-                                             algo="BCEN", verbose=False)
+                                             algo=algo_cent, verbose=False,
+                                             mykpo=self, m2pix=m2pix,
+                                             bmax=bmax_cent)
             dy, dx = (y0-ysz/2), (x0-xsz/2)
 
+            img = np.roll(np.roll(img, -int(round(dx)), axis=1),
+                          -int(round(dy)), axis=0)
+            dx_temp = dx - int(round(dx))
+            dy_temp = dy - int(round(dy))
+
         if self.sgmask is not None:  # use apodization mask before extraction
-            if recenter is True:
-                img *= np.roll(np.roll(self.sgmask, int(round(dx)), axis=1),
-                               int(round(dy)), axis=0)
-            else:
-                img *= self.sgmask
+            img *= self.sgmask
 
         # ----- complex visibility extraction -----
         temp = self.extract_cvis_from_img(img, m2pix, method)
 
         # ---- sub-pixel recentering correction -----
-        if recenter is True:
+        if recenter:
             uvc = self.kpi.UVC * self.M2PIX
-            corr = np.exp(i2pi * uvc.dot(np.array([dx, dy])/float(ysz)))
+            corr = np.exp(i2pi * uvc.dot(np.array([dx_temp, dy_temp])/float(ysz)))
             temp *= corr
 
         cvis.append(temp)
@@ -519,7 +524,10 @@ class KPO():
         self.KPDT.append(np.array(kpdata))
         self.DETPA.append(np.array(detpa).flatten())
         self.MJDATE.append(np.array(mjdate))
-        return
+        if recenter:
+            return dx, dy
+        else:
+            return
 
     # =========================================================================
     # =========================================================================
@@ -594,7 +602,7 @@ class KPO():
 
             # KP-DATA HDU
             # -----------
-            kpd_hdu = fits.ImageHDU(self.KPDT[ii].astype(np.float64))
+            kpd_hdu = fits.ImageHDU(self.KPDT[ii].astype(float))
             kpd_hdu.header.add_comment("Kernel-phase data")
             kpd_hdu.header['EXTNAME'] = 'KP-DATA%d' % (ii+1,)
             kpd_hdu.header['TARGET'] = self.TARGET[ii]
@@ -626,7 +634,7 @@ class KPO():
 
         try:
             _ = self.kp_cov
-            kcv_hdu = fits.ImageHDU(self.kp_cov.astype(np.float64))
+            kcv_hdu = fits.ImageHDU(self.kp_cov.astype(float))
             kcv_hdu.header.add_comment(
                 "Kernel-phase covariance matrix")
             kcv_hdu.header['EXTNAME'] = 'KP-COV'
@@ -958,7 +966,7 @@ class KPO():
         data2 = np.append(data, data) if sym else np.append(data, -data)
 
         ssz = ssize**2  # symbol size
-        dtitle = "Fourier map" if title is "" else title
+        dtitle = "Fourier map" if title == "" else title
 
         if not cbar:
             fig, ax = plt.subplots()
