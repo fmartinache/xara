@@ -98,8 +98,9 @@ class KPO():
 
     def _get_kpo_kpfits(self, hdul: fits.HDUList):
         # TODO: Support KP sigma and cov
+        # TODO: Support multi-lambda (axis=1) in numpy, not sure xara does that yet?
         # TODO: Support MJDATE
-        self.KPDT.append(hdul['KP-DATA'].data[0])
+        self.KPDT.append(hdul['KP-DATA'].data[:, 0])
 
         self.PSCALE = hdul[0].header['PSCALE']
 
@@ -108,7 +109,8 @@ class KPO():
 
         self.DETPA.append(hdul['DETPA'].data)
         cvis_arr = hdul['CVIS-DATA'].data
-        self.CVIS = list(cvis_arr[:, 0, ...] + 1j * cvis_arr[:, 1, ...])
+        # TODO: Support multi-lambda (axis=2) in numpy, not sure xara does that yet?
+        self.CVIS.append(cvis_arr[0, :, 0] + 1j * cvis_arr[1, :, 0])
 
     def _get_kpo_legacy(self, hdul: fits.HDUList):
         # how many data sets are included?
