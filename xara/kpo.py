@@ -651,8 +651,16 @@ class KPO():
 
         # Kenrel phase data
         # Supports only single object
-        kpdt_arr = np.array(self.KPDT)
-        # TODO: This has an extra first dim compared to standard in K22
+        kpdt_arr = np.concatenate(self.KPDT)
+        if len(self.KPDT) > 1:
+            warnings.warn(
+                "Saving all extracted frames and cubges in a single KPFITS file"
+                " along the 'frame' dimension."
+                " Use separate KPO objects if you want something else.",
+                stacklevel=2,
+            )
+        # Add wavelength axis as specified in K22
+        kpdt_arr = np.expand_dims(kpdt_arr, axis=1)
         kpdata_hdu = fits.ImageHDU(kpdt_arr)
         kpdata_hdu.name = 'KP-DATA'
         hdul += [kpdata_hdu]
