@@ -623,7 +623,7 @@ class KPI(object):
 
         # KER-MAT HDU
         # -----------
-        kpm_hdu = fits.ImageHDU(self.KerPhi)
+        kpm_hdu = fits.ImageHDU(self.KPM)
         kpm_hdu.header.add_comment("Kernel-phase Matrix")
         kpm_hdu.header['EXTNAME'] = 'KER-MAT'
 
