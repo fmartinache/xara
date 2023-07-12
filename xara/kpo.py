@@ -51,8 +51,8 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    # TODO: Using KPFITS as default would break backward compat... Could keep default but have warning for few releases? Or just keep legacy as default
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="KPFITS", ID=""):
+    # TODO: Add warning about input format and switch to KPFITS in future version?
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="LEGACY", ID=""):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
