@@ -669,46 +669,9 @@ class KPI(object):
     # =========================================================================
 
     def save_to_file(self, fname):
-        ''' Export the KPI data structure as an external file
-
-        ----------------------------------------------------------------
-        Default export mode is as a multi-extension fits file. While this
-        is the prefered option, for backward compatibility purposes, it is
-        also possible to save the structure as a python pickle data
-        structure, if the option 'pickle' is set to True.
-
-        To save on disk space, this procedure uses the gzip module.
-        While there is no requirement for a specific extension for the
-        file, I would recommend that one uses ".kpi.gz", so as to make
-        it obvious that the file is a gzipped kpi data structure.
-        ----------------------------------------------------------------  '''
-        if '.fits' in fname:
-            self.package_as_fits(fname)
-            return 0
-        else:
-
-            try:
-                data = {'name': self.name,
-                        'mask': self.VAC,
-                        'uv': self.UVC,
-                        'TFM': self.TFM,
-                        'KerPhi': self.KPM,
-                        'RED': self.RED}
-            except AttributeError:
-                print("KPI data structure is incomplete")
-                print("File %s wasn't saved!" % (fname,))
-                return None
-            # -------------
-            try:
-                myf = gzip.GzipFile(fname, "wb")
-            except:
-                print("File %s cannot be created." % (fname,))
-                print("KPI data structure wasn't saved.")
-                return None
-            # -------------
-            pickle.dump(data, myf, -1)
-            myf.close()
-            return 0
+        ''' Export the KPI data structure as a multi-extension fits file '''
+        self.package_as_fits(fname)
+        return 0
 
 ###############################################################################
 ###############################################################################

@@ -71,13 +71,21 @@ class KPO():
                             ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
 
 
+        self.CWAVEL = []  # image/cube central wavelength
+        self.PSCALE = []  # image/cube plate scale
+        self.WRAD = []    # data apodization function radius
+        self.WTYPE = []   # data apodization function type
+        self.DETPA = []   # detector position angles
+        self.MJDATE = []  # data modified Julian date
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
         self.KPDT = []    # kernel-phase data
-        self.DETPA = []   # detector position angles
-        self.MJDATE = []  # data modified Julian date
         self.M2PIX = -1   # used to save time in later computations
-        self.WRAD = None  # data apodization function radius
+
+        self._between_pix = False  # assumption for data centering
+
+        self._in_cube = False     # to order the data structure
+        self._cube_index = 0      # to order the data structure
 
         # if the file is a complete (kpi + kpd) structure
         # additional data can be loaded.
@@ -172,8 +180,8 @@ class KPO():
             msg += "-" * 7 + "\n"
             msg += "-> %d frames\n" % (self.KPDT[ii].shape[0])
             msg += "-> TARGET = %s\n" % (self.TARGET[ii],)
-            msg += "-> CWAVEL = %.2f microns\n" % (self.CWAVEL * 1e6,)
-            msg += "-> PSCALE = %.2f mas/pixel\n" % (self.PSCALE,)
+            msg += "-> CWAVEL = %.2f microns\n" % (self.CWAVEL[ii] * 1e6,)
+            msg += "-> PSCALE = %.2f mas/pixel\n" % (self.PSCALE[ii],)
             msg += "-> DETPA range = %.2f - %.2f (degrees)\n" % (
                 self.DETPA[ii][0], self.DETPA[ii][-1])
             if self.MJDATE[ii][0] != 0.0:
@@ -443,8 +451,10 @@ class KPO():
 
     # =========================================================================
     # =========================================================================
-    def extract_KPD_single_cube(self, cube, pscale, cwavel, target=None,
-                                recenter=False, wrad=None, method="LDFT1"):
+    def extract_KPD_single_cube(self, cube, pscale, cwavel,
+                                detpa=0.0, mjdate=0.0, target="NO_NAME",
+                                recenter=False, wrad=None, wtype="sgauss",
+                                method="LDFT1"):
         """ ----------------------------------------------------------------
         Handles the kernel processing of a cube of square frames
 
@@ -455,112 +465,120 @@ class KPO():
         - cwavel: the central wavelength (in meters)
         ---------------------------------------------------------------- """
         nfrm = cube.shape[0]  # number of frames in the cube
-        print()
-        for ii in range(nfrm):
-            print("\rCube slice %3d / %3d" % (ii+1, nfrm), end="", flush=True)
-            self.extract_KPD_single_frame(
-                cube[ii], pscale, cwavel, target=target,
-                recenter=recenter, wrad=wrad, method=method)
-        print()
-        # at this point, the structures need to be reorganized
-        # this is a bit ugly and I expect I'll have to change a lot of things
-        target = self.TARGET[0]
-        detpa = np.array(self.DETPA)[:, 0]
-        mjdate = np.array(self.MJDATE)[:, 0]
-        kpdata = np.array(self.KPDT)[:, 0, :]
-        cvis = np.array(self.CVIS)[:, 0, :]
 
-        self.TARGET = []
-        self.TARGET.append(target)
-        self.CVIS = []
-        self.CVIS.append(cvis)
-        self.KPDT = []
-        self.KPDT.append(kpdata)
-        self.DETPA = []
+        self._in_cube = True  # signaling we are processing a cube!
+        _cvis = []  # temporary storage
+        _kpdt = []  # temporary storage
+
+        for ii, img in enumerate(cube):
+            print(f"\rCube slice {ii+1:3d} / {nfrm:3d}", end="", flush=True)
+
+            cwl = cwavel[ii] if type(cwavel) is np.ndarray else cwavel
+            dpa = detpa[ii] if type(detpa) is np.ndarray else detpa
+            mjd = mjdate[ii] if type(mjdate) is np.ndarray else mjdate
+            rad = wrad[ii] if type(wrad) is np.ndarray else wrad
+
+            cvis = self.extract_KPD_single_frame(
+                img, pscale, cwl,
+                detpa=dpa, mjdate=mjd, target=target,
+                recenter=recenter, wrad=rad, wtype=wtype, method=method)
+
+            _cvis.append(cvis)
+            _kpdt.append(self.kpi.KPM.dot(np.angle(cvis)))
+        print()
+
+        self._in_cube = False
+
+        _cvis = np.array(_cvis)
+        _kpdt = np.array(_kpdt)
+
+        self.CVIS.append(_cvis)
+        self.KPDT.append(_kpdt)
+
+        self.CWAVEL.append(cwavel)
+        self.PSCALE.append(pscale)
+        self.WRAD.append(wrad)
+        self.WTYPE.append(wtype)
         self.DETPA.append(detpa)
-        self.MJDATE = []
-        self.MJDATE.append(mjdate)
+        self.TARGET.append(target)
+        self.DETPA.append(detpa)
+        self.MJDATE.append(mjd)
         print()
         return
 
     # =========================================================================
     # =========================================================================
-    def extract_KPD_single_frame(self, frame, pscale, cwavel, target=None,
-                                 recenter=False, wrad=None, method="LDFT1",
+    def extract_KPD_single_frame(self, frame, pscale, cwavel, detpa=0.0, mjdate=0.0,
+                                 target="NO_NAME", recenter=False, wrad=None,
+                                 wtype="sgauss", method="LDFT1",
                                  algo_cent="BCEN", bmax_cent=None):
-        """ ----------------------------------------------------------------
-        Handles the kernel processing of a single square frame
+        """Handles the kernel processing of a single square frame
 
         Parameters
         ----------
-        - frame: the 2D array image to process
-        - pscale: the image plate scale (in mas/pixels)
-        - cwavel: the central wavelength (in meters)
+        - frame    : the 2D array image to process
+        - pscale   : the image plate scale (in mas/pixels)
+        - cwavel   : the central wavelength (in meters)
+        - detpa    : detector position angle (in degrees)
+        - mjdate   : mean julian day of observation (float)
+        - target   : the target name (string)
+        - recenter : data needs to be recentered (boolean)
+        - wrad     : window radius (float - number of pixels)
+        - wtype    : type of window ("sgauss" or "tophat")
+        - method   : type of Fourier transform ("LDFT1", "LDFT2" or "FFT")
 
-        Note
-        ----
-        Expects the image to have been pre-centered to the nearest integer
-        number of pixels.
         """
 
-        cvis = []    # complex visibility
-        kpdata = []  # Kernel-phase data
-        detpa = []   # detector position angle
-        mjdate = []  # modified Julian date
+        ysz, xsz = frame.shape                       # image size
+        m2pix = core.mas2rad(pscale) * xsz / cwavel  # Fourier scaling
 
-        isz = frame.shape[0]                     # image size
-        m2pix = core.mas2rad(pscale)*isz/cwavel  # Fourier scaling
-
-        if target is None:
-            target = "NONAME_TARGET"
-
-        self.sgmask = None
         if wrad is not None:
-            self.sgmask = core.super_gauss(isz, isz, wrad)
+            if "hat" in wtype.lower():
+                self.wmask = core.uniform_disk(
+                    ysz, xsz, wrad, between_pix=self._between_pix)
+            else:  # default super-gaussian window assumption
+                self.wmask = core.super_gauss(
+                    ysz, xsz, wrad, between_pix=self._between_pix)
 
-        img = frame.copy()
+        self._tmp_img = frame.copy()
         if recenter:
-            ysz, xsz = frame.shape
-            (x0, y0) = core.determine_origin(img, mask=self.sgmask,
+            (x0, y0) = core.determine_origin(self._tmp_img, mask=self.sgmask,
                                              algo=algo_cent, verbose=False,
                                              mykpo=self, m2pix=m2pix,
                                              bmax=bmax_cent)
             dy, dx = (y0-ysz/2), (x0-xsz/2)
 
-            img = np.roll(np.roll(img, -int(round(dx)), axis=1),
+            self._tmp_img = np.roll(np.roll(self._tmp_img, -int(round(dx)), axis=1),
                           -int(round(dy)), axis=0)
             dx_temp = dx - int(round(dx))
             dy_temp = dy - int(round(dy))
 
-        if self.sgmask is not None:  # use apodization mask before extraction
-            img *= self.sgmask
+        if self.wmask is not None:  # apply window mask before extraction
+            self._tmp_img *= self.wmask
 
         # ----- complex visibility extraction -----
-        temp = self.extract_cvis_from_img(img, m2pix, method)
+        cvis = self.extract_cvis_from_img(self._tmp_img, m2pix, method)
 
         # ---- sub-pixel recentering correction -----
         if recenter:
             uvc = self.kpi.UVC * self.M2PIX
             corr = np.exp(i2pi * uvc.dot(np.array([dx_temp, dy_temp])/float(ysz)))
-            temp *= corr
+            cvis *= corr
 
-        cvis.append(temp)
-        kpdata.append(self.kpi.KPM.dot(np.angle(temp)))
+        if self._in_cube:  # analysis of a data cube returns data
+            return cvis
 
-        # mydate = Time.now()
-        # mjdate.append(mydate.to_value("mjd"))  # reduction time
-        detpa.append(0.0)
-        mjdate.append(0.0)
-
-        self.CWAVEL = cwavel
-        self.PSCALE = pscale
-        self.WRAD = wrad
-
+        # analysis of an isolated frame => feed data structure
+        self.CWAVEL.append(cwavel)
+        self.PSCALE.append(pscale)
+        self.WRAD.append(wrad)
+        self.WTYPE.append(wtype)
+        self.DETPA.append(detpa)
+        self.MJDATE.append(mjdate)
         self.TARGET.append(target)
-        self.CVIS.append(np.array(cvis))
-        self.KPDT.append(np.array(kpdata))
-        self.DETPA.append(np.array(detpa).flatten())
-        self.MJDATE.append(np.array(mjdate))
+        self.CVIS.append(cvis)
+        self.KPDT.append(self.kpi.KPM.dot(np.angle(cvis)))
+        # might as well return recenter info instead of nothing
         if recenter:
             return dx, dy
         else:

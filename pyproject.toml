@@ -1,2 +1,29 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "xara"
+dynamic = ["version"]
+authors = [
+  { name = "Frantz Martinache", email="frantz.martinache@oca.eu"},
+]
+dependencies =["numpy", "matplotlib", "scipy", "astropy"]
+description = "A package for eXtreme Angular Resolution Astronomy"
+readme = "README.md"
+requires-python = ">=3.9"
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+  "Operating System :: POSIX :: Linux"
+]
+
+[tool.hatch.version]
+path = "src/xara/__init__.py"
+
+[project.urls]
+Homepage = "https://github.com/fmartinache/xara/"
+Issues = "https://github.com/fmartinache/xara/issues"
+
 [tool.pyright]
 typeCheckingMode = "off"
