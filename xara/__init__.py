@@ -70,10 +70,6 @@ __version__ = '.'.join(str(c) for c in version_info)
 (plt.rcParams)['image.interpolation'] = 'nearest'
 # -------------------------------------------------
 
-plt.ion()
-plt.show()
-
-
 # =========================================================================
 # =========================================================================
 def field_map_cbar(gmap, gstep, cmap=cm.viridis, fsize=5.2,

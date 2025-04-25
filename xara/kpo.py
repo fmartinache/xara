@@ -17,6 +17,10 @@
     (hdr)
     -------------------------------------------------------------------- '''
 
+from typing import Union, Optional
+import os
+import warnings
+
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -47,7 +51,8 @@ class KPO():
         set.
         ------------------------------------------------------------------- '''
 
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, ID=""):
+    # TODO: Add warning about input format and switch to KPFITS in future version?
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="LEGACY", ID="", kpi_model=None):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -56,8 +61,15 @@ class KPO():
         -------------------------------------------------------------------'''
 
         # Default instantiation.
-        self.kpi = kpi.KPI(fname=fname, array=array,
-                           ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
+        if kpi_model is not None:
+            self.kpi = copy.deepcopy(kpi_model)
+            self.kpi.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
+            if fname is not None or array is not None:
+                warnings.warn("kpi_model was provided. Ignoring fname and array argument.", RuntimeWarning)
+        else:
+            self.kpi = kpi.KPI(fname=fname, array=array,
+                            ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
+
 
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
@@ -80,6 +92,34 @@ class KPO():
             print("No KPO data included")
             return
 
+        if input_format.upper() == "LEGACY":
+            self._get_kpo_legacy(hdul)
+        elif input_format.upper() == "KPFITS":
+            self._get_kpo_kpfits(hdul)
+        else:
+            raise ValueError(f"Unknown input format {input_format}")
+
+        # end
+        # ---
+        hdul.close()
+
+    def _get_kpo_kpfits(self, hdul: fits.HDUList):
+        # TODO: Support KP sigma and cov
+        # TODO: Support multi-lambda (axis=1) in numpy, not sure xara does that yet?
+        # TODO: Support MJDATE
+        self.KPDT.append(hdul['KP-DATA'].data[:, 0])
+
+        self.PSCALE = hdul[0].header['PSCALE']
+
+        self.CWAVEL = hdul['CWAVEL'].data['CWAVEL']
+        self.BWIDTH = hdul['CWAVEL'].data['BWIDTH']
+
+        self.DETPA.append(hdul['DETPA'].data)
+        cvis_arr = hdul['CVIS-DATA'].data
+        # TODO: Support multi-lambda (axis=2) in numpy, not sure xara does that yet?
+        self.CVIS.append(cvis_arr[0, :, 0] + 1j * cvis_arr[1, :, 0])
+
+    def _get_kpo_legacy(self, hdul: fits.HDUList):
         # how many data sets are included?
         # -------------------------------
         nbd = 0
@@ -113,9 +153,6 @@ class KPO():
             print("Covariance data available and loaded")
         except KeyError:
             print("No covariance data available")
-        # end
-        # ---
-        hdul.close()
 
     # =========================================================================
     def __del__(self):
@@ -221,7 +258,7 @@ class KPO():
             res = self.__extract_cvis_fft(image, m2pix)
         else:
             res = None
-            print("Requested method %s does not exist" % (method,))
+            raise ValueError("Requested method %s does not exist" % (method,))
         self.M2PIX = m2pix  # to check the validity of aux data next time !
         return res
 
@@ -572,6 +609,133 @@ class KPO():
                 return
             self.kp_cov = np.cov(self.KPDT[0].T)
 
+    def save_as_kpfits(
+        self,
+        fname: Union[str, os.PathLike],
+        img_data: Optional[np.ndarray] = None,
+        cwavel: Optional[float] = None,
+        bwidth: Optional[float] = None,
+        detpa: Optional[float] = None,
+        winmask: Optional[np.ndarray] = None,
+        overwrite: bool = False,
+    ) -> fits.HDUList:
+        '''
+        Export the KPO data structure
+
+        fname: file name where the KPI path is
+        '''
+
+        kpi_fits = self.kpi.package_as_fits()
+
+        hdul = fits.HDUList()
+
+        hdr = fits.Header()
+        hdr['SOFTWARE'] = 'XARA'
+        # TODO: Save same as calwebb stuff
+        # TODO: Save wavelength info
+        hdr['PSCALE'] = self.PSCALE
+        # TODO: If image is hdul, inherit its primary header info
+        if img_data is not None:
+            primary_hdu = fits.PrimaryHDU(img_data, header=hdr)
+        else:
+            primary_hdu = fits.PrimaryHDU(header=hdr)
+        hdul += [primary_hdu]
+        hdul[0].header['EXTEND'] = True  # Enable saving in mulit-extension fits
+
+        # Aperture extension
+        aperture_hdu = kpi_fits['APERTURE']
+        hdul += [aperture_hdu]
+
+        # UV-Plane extension
+        uvplane_hdu = kpi_fits['UV-PLANE']
+        hdul += [uvplane_hdu]
+
+        # Ker-mat extension
+        kermat_hdu = kpi_fits['KER-MAT']
+        hdul += [kermat_hdu]
+
+        # BLM (transmission) matrix extension
+        blm_hdu = kpi_fits['BLM-MAT']
+        hdul += [blm_hdu]
+
+        # Kernel phase data
+        # Supports only single object
+        kpdt_arr = np.concatenate(self.KPDT)
+        if len(self.KPDT) > 1:
+            warnings.warn(
+                "Saving all extracted frames and cubes in a single KPFITS file"
+                " along the 'frame' dimension."
+                " Use separate KPO objects if you want something else.",
+                stacklevel=2,
+            )
+        # Add wavelength axis as specified in K22
+        kpdt_arr = np.expand_dims(kpdt_arr, axis=1)
+        kpdata_hdu = fits.ImageHDU(kpdt_arr)
+        kpdata_hdu.name = 'KP-DATA'
+        hdul += [kpdata_hdu]
+
+        # Kernel phase uncertainties
+        # TODO: Implement support for KP uncertainty
+        kpsigm_hdu = fits.ImageHDU(np.full_like(kpdt_arr, np.nan))
+        kpsigm_hdu.name = 'KP-SIGM'
+        kpsigm_hdu.header['COMMENT'] = 'KP uncertainties not yet implemented'
+        hdul += [kpsigm_hdu]
+
+        # Central wavelength info
+        # TODO: This should probably be handled by KPI or KPO object. Required for extraction
+        cwavel_hdr = fits.Header()
+        if cwavel is None:
+            cwavel = np.nan
+            cwavel_hdr['COMMENT'] = 'cwavel not provided'
+        if bwidth is None:
+            bwidth = np.nan
+            cwavel_hdr['COMMENT'] = 'bwidth not provided'
+        cwavel_hdu = fits.BinTableHDU.from_columns(
+            [
+                fits.Column(name='CWAVEL', format='D', array=np.array([cwavel])),
+                fits.Column(name='BWIDTH', format='D', array=np.array([bwidth])),
+            ],
+            header=cwavel_hdr,
+        )
+        cwavel_hdu.name = 'CWAVEL'
+        hdul += [cwavel_hdu]
+
+        # Position angle of detector (E or N) in degrees
+        detpa = detpa or 0.0
+        detpa_hdu = fits.ImageHDU(np.array([detpa] * kpdt_arr.shape[0]))
+        detpa_hdu.name = 'DETPA'
+        hdul += [detpa_hdu]
+
+        # Complex visibility data
+        # Concatenate all extracted frames along axis 0 (Nf, Nbl)
+        cvis_arr = np.concatenate(self.CVIS)
+        # Split real and imag along axis 0 (2, Nframes, Nbl)
+        cvis_arr = np.stack([cvis_arr.real, cvis_arr.imag], axis=0)
+        # Add wavelength dimension (2, Nf, 1, Nbl)
+        cvis_arr = np.expand_dims(cvis_arr, axis=2)
+        cvis_data_hdu = fits.ImageHDU(cvis_arr)
+        cvis_data_hdu.name = 'CVIS-DATA'
+        hdul += [cvis_data_hdu]
+
+        # Windowing mask
+        if hasattr(self, "sgmask") and self.sgmask is not None:
+            if winmask is not None:
+                warnings.warn(
+                    "winmask as passed to save_as_kpfits, but sgmask attribute exists. Saving winmask only.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+            else:
+                winmask = self.sgmask
+        if winmask is not None:
+            winmask_hdu = fits.ImageHDU(winmask)
+            winmask_hdu.name = "WINMASK"
+            hdul += [winmask_hdu]
+
+        hdul.writeto(fname, overwrite=overwrite)
+
+        return hdul
+
     # =========================================================================
     # =========================================================================
     def save_as_fits(self, fname):
@@ -818,7 +982,7 @@ class KPO():
         ---------------------------------------------------------------- '''
 
         try:
-            _ = self.TARGET[index]
+            _ = self.KPDT[index]
         except IndexError:
             print("Requested dataset (index=%d) does not exist" % (index,))
             print("No data-matching binary model can be built.")
