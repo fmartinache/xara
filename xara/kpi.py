@@ -80,7 +80,9 @@ class KPI(object):
         Option:
         ------
         - ndgt: (integer) number of digits when rounding x,y baselines
-        - bmax: length of the max baseline kept in the model (in meters)
+        - bmax: length of the max baseline kept in the model (in meters).
+                For hexa=True, the longuest baseline will be longer than the input value.
+                This is a known bug. Adjust to lower values accordingly. 5.7 gives 6.3 for JWST.
         - ID  : (string) give the KPI structure a human readable ID
 
         Remarks:
