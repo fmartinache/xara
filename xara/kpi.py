@@ -99,6 +99,7 @@ class KPI(object):
         improves the overall performance in the presence of noisy data.
         -------------------------------------------------------------------'''
 
+        # TODO: Would be nice if can apply bmax a-posteriori
         if fname is not None:
             print("Attempting to load file %s" % (fname,))
             if '.fits' in fname:
@@ -449,6 +450,7 @@ class KPI(object):
         self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         if ap_flag:
+            # TODO: Remove commented line
             self.TFM = np.diag(1./self.RED).dot(self.BLM[:, 1:])
             # self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
 
