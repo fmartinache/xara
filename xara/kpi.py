@@ -58,7 +58,7 @@ class KPI(object):
     # =========================================================================
 
     def __init__(self, fname=None, array=None, ndgt=5,
-                 bmax=None, hexa=False, ID=""):
+                 bmax=None, hexa=False, ID="", pupil_mask=None, pupil_scale=None):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -126,7 +126,9 @@ class KPI(object):
                 self.load_aperture_model(data=array)
                 self.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
                 self.name = ID
-            except:
+                self.pupil_scale = pupil_scale
+                self.pupil_mask = pupil_mask
+            except Exception:
                 print("Problem using array %s" % (array,))
                 print("Array cannot be used to create KPI structure")
             print("KPI data successfully created")
@@ -424,6 +426,15 @@ class KPI(object):
             print('APERTURE HDU not available')
             ap_flag = False
 
+        if "PUPIL-MASK" in hdulist:
+            tmp = hdulist["PUPIL-MASK"].data
+            self.pupil_mask = np.array(tmp)
+            self.pupil_scale = hdulist["PUPIL-MASK"].header["PUPLSCAL"]
+        else:
+            self.pupil_mask = None
+            self.pupil_scale = None
+
+
         # ------------------------------------
         #    UV-PLANE is an REQUIRED HDU
         # ------------------------------------
@@ -633,6 +644,13 @@ class KPI(object):
         blm_hdu = fits.ImageHDU(self.BLM)
         blm_hdu.header.add_comment("Baseline Mapping Matrix")
         blm_hdu.header['EXTNAME'] = 'BLM-MAT'
+
+        # Pupil mask HDU
+        if self.pupil_mask is not None:
+            mask_hdu = fits.ImageHDU(self.pupil_mask)
+            mask_hdu.header.add_comment("Pupil mask used to create aperture model")
+            mask_hdu.header["PUPLSCAL"] = (self.pupil_scale or 0.0, "Pupil scale of the mask [m]")
+            mask_hdu.header["EXTNAME"] = "PUPIL-MASK"
 
         # compile HDU list and save
         # -------------------------
