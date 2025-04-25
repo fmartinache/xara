@@ -52,7 +52,7 @@ class KPO():
         ------------------------------------------------------------------- '''
 
     # TODO: Add warning about input format and switch to KPFITS in future version?
-    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="LEGACY", ID=""):
+    def __init__(self, fname=None, array=None, ndgt=5, bmax=None, hexa=False, input_format="LEGACY", ID="", kpi_model=None):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -61,8 +61,15 @@ class KPO():
         -------------------------------------------------------------------'''
 
         # Default instantiation.
-        self.kpi = kpi.KPI(fname=fname, array=array,
-                           ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
+        if kpi_model is not None:
+            self.kpi = copy.deepcopy(kpi_model)
+            self.kpi.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
+            if fname is not None or array is not None:
+                warnings.warn("kpi_model was provided. Ignoring fname and array argument.", RuntimeWarning)
+        else:
+            self.kpi = kpi.KPI(fname=fname, array=array,
+                            ndgt=ndgt, bmax=bmax, hexa=hexa, ID=ID)
+
 
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
@@ -251,7 +258,7 @@ class KPO():
             res = self.__extract_cvis_fft(image, m2pix)
         else:
             res = None
-            print("Requested method %s does not exist" % (method,))
+            raise ValueError("Requested method %s does not exist" % (method,))
         self.M2PIX = m2pix  # to check the validity of aux data next time !
         return res
 
@@ -975,7 +982,7 @@ class KPO():
         ---------------------------------------------------------------- '''
 
         try:
-            _ = self.TARGET[index]
+            _ = self.KPDT[index]
         except IndexError:
             print("Requested dataset (index=%d) does not exist" % (index,))
             print("No data-matching binary model can be built.")

@@ -382,7 +382,7 @@ def centroid(image, threshold=0, binarize=False):
 
 
 # =========================================================================
-def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
+def find_psf_center(img, verbose=True, nbit=10, wmin=10.0):
     ''' Name of function self explanatory: locate the center of a PSF.
 
     ------------------------------------------------------------------
@@ -405,11 +405,6 @@ def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
 
     i0 = float(nbit-1) / np.log(sx/wmin)
 
-    if visu:
-        plt.figure()
-        plt.ion()
-        plt.show()
-
     for it in range(nbit):
         sz = np.round(sx/2 * np.exp(-it/i0))
         x0 = np.max([int(0.5 + xc - sz), 0])
@@ -419,11 +414,6 @@ def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
 
         mask = np.zeros_like(img)
         mask[y0:y1, x0:x1] = 1.0
-
-        if visu:
-            plt.clf()
-            plt.imshow((mfilt**0.2) * mask)
-            plt.pause(0.1)
 
         profx = (mfilt*mask*signal).sum(axis=0)
         profy = (mfilt*mask*signal).sum(axis=1)

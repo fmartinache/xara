@@ -19,8 +19,6 @@ from numpy.random import rand, randn
 import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 
-plt.ion()
-
 # =========================================================================
 # =========================================================================
 def vertical_rim(gsz=256, gstep=15, height=100, rad=450, cont=1e-3,

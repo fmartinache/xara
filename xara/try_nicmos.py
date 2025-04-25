@@ -5,9 +5,6 @@ import xara
 import numpy as np
 import matplotlib.pyplot as plt
 
-plt.ion()
-plt.show()
-
 ''' ------------------------------------------------------------------
     For this demonstration, two HST data sets on the same target at two
     different wavelengths (110W and 170M) are provided as part of this
