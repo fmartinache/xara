@@ -12,3 +12,6 @@
 
 # build folder
 /build/
+
+# Project-specific outputs
+tests/PHARO
