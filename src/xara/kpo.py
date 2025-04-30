@@ -542,7 +542,7 @@ class KPO():
 
         self._tmp_img = frame.copy()
         if recenter:
-            (x0, y0) = core.determine_origin(self._tmp_img, mask=self.sgmask,
+            (x0, y0) = core.determine_origin(self._tmp_img, mask=self.wmask,
                                              algo=algo_cent, verbose=False,
                                              mykpo=self, m2pix=m2pix,
                                              bmax=bmax_cent)
@@ -736,15 +736,15 @@ class KPO():
         hdul += [cvis_data_hdu]
 
         # Windowing mask
-        if hasattr(self, "sgmask") and self.sgmask is not None:
+        if hasattr(self, "wmask") and self.wmask is not None:
             if winmask is not None:
                 warnings.warn(
-                    "winmask as passed to save_as_kpfits, but sgmask attribute exists. Saving winmask only.",
+                    "winmask as passed to save_as_kpfits, but wmask attribute exists. Saving winmask only.",
                     RuntimeWarning,
                     stacklevel=2,
                 )
             else:
-                winmask = self.sgmask
+                winmask = self.wmask
         if winmask is not None:
             winmask_hdu = fits.ImageHDU(winmask)
             winmask_hdu.name = "WINMASK"
