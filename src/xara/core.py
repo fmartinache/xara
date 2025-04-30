@@ -382,7 +382,7 @@ def centroid(image, threshold=0, binarize=False):
 
 
 # =========================================================================
-def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
+def find_psf_center(img, verbose=True, nbit=10, wmin=10.0):
     ''' Name of function self explanatory: locate the center of a PSF.
 
     ------------------------------------------------------------------
@@ -405,11 +405,6 @@ def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
 
     i0 = float(nbit-1) / np.log(sx/wmin)
 
-    if visu:
-        plt.figure()
-        plt.ion()
-        plt.show()
-
     for it in range(nbit):
         sz = np.round(sx/2 * np.exp(-it/i0))
         x0 = np.max([int(0.5 + xc - sz), 0])
@@ -419,11 +414,6 @@ def find_psf_center(img, verbose=True, nbit=10, visu=False, wmin=10.0):
 
         mask = np.zeros_like(img)
         mask[y0:y1, x0:x1] = 1.0
-
-        if visu:
-            plt.clf()
-            plt.imshow((mfilt**0.2) * mask)
-            plt.pause(0.1)
 
         profx = (mfilt*mask*signal).sum(axis=0)
         profy = (mfilt*mask*signal).sum(axis=1)
@@ -480,13 +470,13 @@ def find_fourier_origin(img, mykpo, m2pix, bmax=6.0):
 
     # Find Fourier plane coordinates which will be considered for the re-centering
     uv_dist = np.sqrt(mykpo.kpi.UVC[:, 0]**2+mykpo.kpi.UVC[:, 1]**2)
-    uv_cutoff = np.where(uv_dist < float(r_cutoff))[0]
+    uv_cutoff = np.where(uv_dist < float(bmax))[0]
 
     # Find best sub-pixel shift
     img_fft = np.fft.rfft2(img_cent)
     best_xy_shift = leastsq(func=fourier_phase_resid_2d,
                             x0=np.array([0., 0.]),
-                            args=(img_fft, m2pix, uv, uv_cutoff),
+                            args=(img_fft, mykpo, m2pix, uv, uv_cutoff),
                             ftol=1E-1)[0]
 
     # Return best shift
@@ -514,7 +504,8 @@ def fourier_phase_resid_2d(xy, img_fft, mykpo, m2pix, uv, uv_cutoff):
 
 
 # =========================================================================
-def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
+def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0,
+                     mykpo=None, m2pix=None, bmax=None):
     ''' ------------------------------------------------------------
     Determines the origin of the image, using among possible algorithms.
 
@@ -540,6 +531,11 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
     if "cog" in algo.lower():
         (x0, y0) = centroid(img1, verbose)
 
+    elif "fpnm" in algo.lower():
+        if mykpo is None or m2pix is None or bmax is None:
+            raise ValueError("Need mykpo, m2pix, and bmax parameters")
+        (x0, y0) = find_fourier_origin(img1, mykpo, m2pix, bmax)
+
     else:
         (x0, y0) = find_psf_center(img1, verbose, nbit=10, wmin=wmin)
 
@@ -548,7 +544,8 @@ def determine_origin(img, mask=None, algo="BCEN", verbose=True, wmin=10.0):
 
 # =========================================================================
 def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
-             verbose=True):
+             verbose=True, return_center=False, dxdy=None, mykpo=None,
+             m2pix=None, bmax=None):
     ''' ------------------------------------------------------------
     Re-centering algorithm of a 2D image im0 for kernel-analysis
 
@@ -563,6 +560,18 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
     - subpix: sub-pixel recentering         (boolean, default=True)
     - between: center in between 4 pixels   (boolean, default=False)
     - verbose: display some additional info (boolean, default=True)
+    - return_center: return center coordinate in original image (boolean, default=False)
+    - dxdy: center coordinates to use, origin is found with `algo` if None (Tuple[float], default=None)
+    - mykpo: KPO object, used to determine origin with FPNM (xara.kpo.KPO, default=None)
+    - m2pix: Meter to pixel scaling parameter for FPNM (float, default=None)
+    - bmax: Max baseline (in m) for FPNM (float, default=None)
+
+    Returns:
+    -------
+    - img: The recentered image
+    - If `return_center` is True:
+      + dx_temp: x coordinate of the center in original image
+      + dy_temp: y coordinate of the center in original image
 
     Remarks:
     -------
@@ -572,18 +581,25 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
 
     ysz, xsz = im0.shape
 
-    (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose)
+    if dxdy is None:
+        (x0, y0) = determine_origin(im0, mask=mask, algo=algo, verbose=verbose,
+                                    mykpo=mykpo, m2pix=m2pix, bmax=bmax)
 
-    dy, dx = (y0-ysz/2), (x0-xsz/2)
-    if between:
-        dy += 0.5
-        dx += 0.5
+        dy, dx = (y0-ysz/2), (x0-xsz/2)
+        if between:
+            dy += 0.5
+            dx += 0.5
 
-    if verbose:
-        print("centroid: dx=%+5.2f, dy=%+5.2f\n" % (dx, dy),
-              end="", flush=True)
+        if verbose:
+            print("centroid: dx=%+5.2f, dy=%+5.2f\n" % (dx, dy),
+                  end="", flush=True)
+
+    else:
+        dx, dy = dxdy
 
     # integer pixel recentering first
+    dx_temp = dx
+    dy_temp = dy
     im0 = np.roll(np.roll(im0, -int(round(dx)), axis=1),
                   -int(round(dy)), axis=0)
 
@@ -619,7 +635,10 @@ def recenter(im0, mask=None, algo="BCEN", subpix=True, between=False,
         offset = np.exp(1j*slope)
         dummy = np.real(shift(ifft(offset * fft(shift(im)))))
         im0 = dummy[oriy:oriy+ysz, orix:orix+xsz]
-    return im0
+    if not return_center:
+        return im0
+    else:
+        return im0, dx_temp, dy_temp
 
 
 # =========================================================================
@@ -778,6 +797,63 @@ def uv_phase_regrid_matrix(UVD, UVS, rad):
     WW = np.abs(GG).sum(axis=1)
     GG = np.diag(1/WW).dot(GG)
     return GG
+
+
+def hexagon(dim, width, interp_edge=True):
+    """This function creates a hexagon.
+
+    Adapted from: https://github.com/mikeireland/opticstools/blob/master/opticstools/utils.py#L164
+    by Mike Ireland under MIT License
+
+    Parameters
+    ----------
+    dim: int
+        Size of the 2D array
+    width: int
+        flat-to-flat width of the hexagon
+
+    Returns
+    -------
+    pupil: float array (sz,sz)
+        2D array hexagonal pupil mask
+    """
+    x = np.arange(dim) - dim / 2.0
+    xy = np.meshgrid(x, x)
+    xx = xy[1]
+    yy = xy[0]
+    hex = np.zeros((dim, dim))
+    scale = 1.5
+    offset = 0.5
+    if interp_edge:
+        # !!! Not fully implemented yet. Need to compute the orthogonal distance
+        # from each line and accurately find fractional area of each pixel.
+        hex = (
+            np.minimum(np.maximum(width / 2 - yy + offset, 0), 1)
+            * np.minimum(np.maximum(width / 2 + yy + offset, 0), 1)
+            * np.minimum(
+                np.maximum((width - np.sqrt(3) * xx - yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width - np.sqrt(3) * xx + yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width + np.sqrt(3) * xx - yy + offset) * scale, 0), 1
+            )
+            * np.minimum(
+                np.maximum((width + np.sqrt(3) * xx + yy + offset) * scale, 0), 1
+            )
+        )
+    else:
+        w = np.where(
+            (yy < width / 2)
+            * (yy > (-width / 2))
+            * (yy < (width - np.sqrt(3) * xx))
+            * (yy > (-width + np.sqrt(3) * xx))
+            * (yy < (width + np.sqrt(3) * xx))
+            * (yy > (-width - np.sqrt(3) * xx))
+        )
+        hex[w] = 1.0
+    return hex
 
 
 # =========================================================================
