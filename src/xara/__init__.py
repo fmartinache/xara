@@ -28,3 +28,10 @@
 
 __version__ = "1.0.0"
 
+from xara import (
+    core as core,
+    fitting as fitting,
+    iwfs as iwfs,
+    kpi as kpi,
+    kpo as kpo,
+)
