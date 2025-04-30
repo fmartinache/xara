@@ -977,7 +977,7 @@ class KPO():
         data2 = np.append(data, data) if sym else np.append(data, -data)
 
         ssz = ssize**2  # symbol size
-        dtitle = "Fourier map" if title is "" else title
+        dtitle = "Fourier map" if title == "" else title
 
         if not cbar:
             fig, ax = plt.subplots()
