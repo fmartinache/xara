@@ -660,7 +660,7 @@ class KPO():
     # =========================================================================
     # =========================================================================
     def kpd_binary_match_map(
-            self, gsz, gstep, kp_signal, cref=0.01, norm=False):
+            self, gsz, gstep, kp_signal, cwavel, cref=0.01, norm=False):
         """ ---------------------------------------------------------------
         Produces a 2D-map showing where the best binary fit occurs for
         the kp_signal vector provided as an argument
@@ -673,6 +673,8 @@ class KPO():
         - gsz       : grid size (gsz x gsz)
         - gstep     : grid step in mas
         - kp_signal : the kernel-phase vector
+        - cwavel    : wavelength value (float).
+                      Should be the element of `KPO.CWAVEL` corresponding to the data if available.
         - cref      : reference contrast (optional, default = 0.01)
         - norm      : normalizes the map (boolean, default = False)
 
@@ -688,7 +690,7 @@ class KPO():
         cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
             self.kpi.UVC[:, 0],
             self.kpi.UVC[:, 1],
-            self.CWAVEL, mgrid, gstep)
+            cwavel, mgrid, gstep)
 
         kpmap = self.kpi.KPM.dot(np.angle(cvis))
         crit = kpmap.T.dot(kp_signal)
