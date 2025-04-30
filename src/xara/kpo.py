@@ -495,7 +495,7 @@ class KPO():
 
         # TODO: Flag when wrad is not None and wtype is None
         # to prevent users from trying to disable with wtype
-        # and accidentally get "sgmask".
+        # and accidentally get "wmask".
         # Or change behaviour so that wtype=None is None
         if wrad is not None:
             if "hat" in wtype.lower():
