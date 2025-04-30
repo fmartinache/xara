@@ -146,3 +146,6 @@ cython_debug/
 
 # emacs temporary save files
 *~
+
+# Project-specific outputs
+tests/PHARO

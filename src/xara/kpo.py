@@ -182,8 +182,7 @@ class KPO():
             msg += "-> TARGET = %s\n" % (self.TARGET[ii],)
             msg += "-> CWAVEL = %.2f microns\n" % (self.CWAVEL[ii] * 1e6,)
             msg += "-> PSCALE = %.2f mas/pixel\n" % (self.PSCALE[ii],)
-            msg += "-> DETPA range = %.2f - %.2f (degrees)\n" % (
-                self.DETPA[ii][0], self.DETPA[ii][-1])
+            msg += "-> DETPA = %.2f (degrees)\n" % (self.DETPA[ii])
             if self.MJDATE[ii][0] != 0.0:
                 myd = Time(val=self.MJDATE[ii][0], format="mjd")
                 msg += "-> MJDATE = %s\n" % myd.to_value("iso")
@@ -501,7 +500,6 @@ class KPO():
         self.WTYPE.append(wtype)
         self.DETPA.append(detpa)
         self.TARGET.append(target)
-        self.DETPA.append(detpa)
         self.MJDATE.append(mjd)
         print()
         return
@@ -532,6 +530,10 @@ class KPO():
         ysz, xsz = frame.shape                       # image size
         m2pix = core.mas2rad(pscale) * xsz / cwavel  # Fourier scaling
 
+        # TODO: Flag when wrad is not None and wtype is None
+        # to prevent users from trying to disable with wtype
+        # and accidentally get "wmask".
+        # Or change behaviour so that wtype=None is None
         if wrad is not None:
             if "hat" in wtype.lower():
                 self.wmask = core.uniform_disk(
@@ -539,6 +541,8 @@ class KPO():
             else:  # default super-gaussian window assumption
                 self.wmask = core.super_gauss(
                     ysz, xsz, wrad, between_pix=self._between_pix)
+        else:
+            self.wmask = None
 
         self._tmp_img = frame.copy()
         if recenter:
@@ -834,7 +838,7 @@ class KPO():
     # =========================================================================
     # =========================================================================
     def kpd_binary_match_map(
-            self, gsz, gstep, kp_signal, cref=0.01, norm=False):
+            self, gsz, gstep, kp_signal, cwavel, cref=0.01, norm=False):
         """ ---------------------------------------------------------------
         Produces a 2D-map showing where the best binary fit occurs for
         the kp_signal vector provided as an argument
@@ -847,6 +851,8 @@ class KPO():
         - gsz       : grid size (gsz x gsz)
         - gstep     : grid step in mas
         - kp_signal : the kernel-phase vector
+        - cwavel    : wavelength value (float).
+                      Should be the element of `KPO.CWAVEL` corresponding to the data if available.
         - cref      : reference contrast (optional, default = 0.01)
         - norm      : normalizes the map (boolean, default = False)
 
@@ -862,7 +868,7 @@ class KPO():
         cvis = 1.0 + cref * core.grid_precalc_aux_cvis(
             self.kpi.UVC[:, 0],
             self.kpi.UVC[:, 1],
-            self.CWAVEL, mgrid, gstep)
+            cwavel, mgrid, gstep)
 
         kpmap = self.kpi.KPM.dot(np.angle(cvis))
         crit = kpmap.T.dot(kp_signal)
@@ -1008,12 +1014,15 @@ class KPO():
             return
 
         nbd = self.KPDT[index].shape[0]
+        detpa_i = self.DETPA[index]
+        if isinstance(detpa_i, float):
+            detpa_i = np.full(nbd, detpa_i)
 
         sim = []
 
         # compute binary complex visibilities at multiple DETPA
         for ii in range(nbd):
-            temp = self.__cvis_binary_model(params, self.DETPA[index][ii])
+            temp = self.__cvis_binary_model(params, detpa_i[ii])
             if "KERNEL" in obs.upper():
                 sim.append(self.kpi.KPM.dot(np.angle(temp)))
             elif "PHASE" in obs.upper():
