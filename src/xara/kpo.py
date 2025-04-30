@@ -493,6 +493,10 @@ class KPO():
         ysz, xsz = frame.shape                       # image size
         m2pix = core.mas2rad(pscale) * xsz / cwavel  # Fourier scaling
 
+        # TODO: Flag when wrad is not None and wtype is None
+        # to prevent users from trying to disable with wtype
+        # and accidentally get "sgmask".
+        # Or change behaviour so that wtype=None is None
         if wrad is not None:
             if "hat" in wtype.lower():
                 self.wmask = core.uniform_disk(
@@ -500,6 +504,8 @@ class KPO():
             else:  # default super-gaussian window assumption
                 self.wmask = core.super_gauss(
                     ysz, xsz, wrad, between_pix=self._between_pix)
+        else:
+            self.wmask = None
 
         self._tmp_img = frame.copy()
         if recenter is True:
