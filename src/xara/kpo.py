@@ -145,8 +145,7 @@ class KPO():
             msg += "-> TARGET = %s\n" % (self.TARGET[ii],)
             msg += "-> CWAVEL = %.2f microns\n" % (self.CWAVEL[ii] * 1e6,)
             msg += "-> PSCALE = %.2f mas/pixel\n" % (self.PSCALE[ii],)
-            msg += "-> DETPA range = %.2f - %.2f (degrees)\n" % (
-                self.DETPA[ii][0], self.DETPA[ii][-1])
+            msg += "-> DETPA = %.2f (degrees)\n" % (self.DETPA[ii])
             if self.MJDATE[ii][0] != 0.0:
                 myd = Time(val=self.MJDATE[ii][0], format="mjd")
                 msg += "-> MJDATE = %s\n" % myd.to_value("iso")
@@ -464,7 +463,6 @@ class KPO():
         self.WTYPE.append(wtype)
         self.DETPA.append(detpa)
         self.TARGET.append(target)
-        self.DETPA.append(detpa)
         self.MJDATE.append(mjd)
         print()
         return
@@ -836,12 +834,15 @@ class KPO():
             return
 
         nbd = self.KPDT[index].shape[0]
+        detpa_i = self.DETPA[index]
+        if isinstance(detpa_i, float):
+            detpa_i = np.full(nbd, detpa_i)
 
         sim = []
 
         # compute binary complex visibilities at multiple DETPA
         for ii in range(nbd):
-            temp = self.__cvis_binary_model(params, self.DETPA[index][ii])
+            temp = self.__cvis_binary_model(params, detpa_i[ii])
             if "KERNEL" in obs.upper():
                 sim.append(self.kpi.KPM.dot(np.angle(temp)))
             elif "PHASE" in obs.upper():
