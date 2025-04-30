@@ -531,7 +531,7 @@ class KPO():
             self.WRAD.append(wrad)
             self.WTYPE.append(wtype)
             self.DETPA.append(detpa)
-            self.MJDATE.append(mjd)
+            self.MJDATE.append(mjdate)
             self.TARGET.append(target)
             self.CVIS.append(cvis)
             self.KPDT.append(self.kpi.KPM.dot(np.angle(cvis)))
