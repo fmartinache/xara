@@ -698,7 +698,7 @@ class KPO():
                 " Use separate KPO objects if you want something else.",
                 stacklevel=2,
             )
-        # Add wavelength axis as specified in K22
+        # Add wavelength axis as specified in K23 paper
         kpdt_arr = np.expand_dims(kpdt_arr, axis=1)
         kpdata_hdu = fits.ImageHDU(kpdt_arr)
         kpdata_hdu.name = 'KP-DATA'
