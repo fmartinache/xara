@@ -18,6 +18,9 @@ classifiers = [
   "Operating System :: POSIX :: Linux"
 ]
 
+[project.optional-dependencies]
+test = ["pytest", "xaosim"]
+
 [tool.hatch.version]
 path = "src/xara/__init__.py"
 
