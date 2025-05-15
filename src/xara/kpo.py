@@ -512,6 +512,10 @@ class KPO():
                                  algo_cent="BCEN", bmax_cent=None):
         """Handles the kernel processing of a single square frame
 
+        If run outside of cube extraction, this function will modify the data structure to add
+        the data for this frame. For example, this means KPDT will have a new element with shape `(nkp,)`.
+        Note that this is different from `extract_KPD_single_cube()`, where KPDT elements have shape `(nints, nkp)`.
+
         Parameters
         ----------
         - frame    : the 2D array image to process
@@ -525,6 +529,10 @@ class KPO():
         - wtype    : type of window ("sgauss" or "tophat")
         - method   : type of Fourier transform ("LDFT1", "LDFT2" or "FFT")
 
+        Returns
+        -------
+        - Complex visibility array when run from `extract_KPD_single_cube()` or when internal state `KPO._in_cube` is True.
+        - When not "in cube", returns `dx` and `dy` if `recenter=True`
         """
 
         ysz, xsz = frame.shape                       # image size
