@@ -41,7 +41,8 @@ import matplotlib.cm as cm
 from astropy.io import fits
 import pickle
 import gzip
-from numpy.linalg import norm
+
+from .core import hexagon
 
 
 class KPI(object):
@@ -57,7 +58,7 @@ class KPI(object):
     # =========================================================================
 
     def __init__(self, fname=None, array=None, ndgt=5,
-                 bmax=None, ID=""):
+                 bmax=None, hexa=False, ID="", pupil_mask=None, pupil_scale=None):
         ''' Default instantiation of a KerPhase_Relation object:
 
         -------------------------------------------------------------------
@@ -79,7 +80,9 @@ class KPI(object):
         Option:
         ------
         - ndgt: (integer) number of digits when rounding x,y baselines
-        - bmax: length of the max baseline kept in the model (in meters)
+        - bmax: length of the max baseline kept in the model (in meters).
+                For hexa=True, the longuest baseline will be longer than the input value.
+                This is a known bug. Adjust to lower values accordingly. 5.7 gives 6.3 for JWST.
         - ID  : (string) give the KPI structure a human readable ID
 
         Remarks:
@@ -96,7 +99,9 @@ class KPI(object):
         improves the overall performance in the presence of noisy data.
         -------------------------------------------------------------------'''
 
+        # TODO: Would be nice if can apply bmax a-posteriori
         if fname is not None:
+            fname = str(fname)
             print("Attempting to load file %s" % (fname,))
             if '.fits' in fname:
                 try:
@@ -115,7 +120,7 @@ class KPI(object):
                     self.load_aperture_model(fname=fname)
                 except OSError:
                     raise Exception("Not a valid coordinate file")
-                self.rebuild_model(ndgt=ndgt, bmax=bmax)
+                self.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
 
             print("KPI data successfully loaded")
 
@@ -123,9 +128,11 @@ class KPI(object):
             print("Attempting to build KPI from array")
             try:
                 self.load_aperture_model(data=array)
-                self.rebuild_model(ndgt=ndgt, bmax=bmax)
+                self.rebuild_model(ndgt=ndgt, bmax=bmax, hexa=hexa)
                 self.name = ID
-            except:
+                self.pupil_scale = pupil_scale
+                self.pupil_mask = pupil_mask
+            except Exception:
                 print("Problem using array %s" % (array,))
                 print("Array cannot be used to create KPI structure")
             print("KPI data successfully created")
@@ -176,7 +183,7 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def rebuild_model(self, ndgt=5, bmax=None):
+    def rebuild_model(self, ndgt=5, bmax=None, hexa=False):
         ''' ------------------------------------------------------------------
         Builds or rebuilds the Fourier-phase model, from the information
         provided by the virtual aperture coordinate (VAC) table.
@@ -188,6 +195,8 @@ class KPI(object):
 
         - bmax: a baseline filtering parameter (in meters): if not None,
           baselines larger than bmax are eliminated from the discrete model
+
+        - hexa: if True, masks out noisy baselines using a hexagonal shape
 
         ------------------------------------------------------------------ '''
 
@@ -240,19 +249,36 @@ class KPI(object):
         # 1.5. Special case: baseline filtering
         # -------------------------------------
         if bmax is not None:
-            uv_sampl = self.UVC.copy()   # copy previously identified baselines
-            # uvm = np.abs(self.UVC).max() # max baseline length
+            if hexa:
+                flat_to_flat = 2.*6.5 # m, size is doubled in uv-plane
+                mask = hexagon(1024, 512*2.*float(bmax)/flat_to_flat, interp_edge=False) # center is (512, 512)
+                uv_sampl = self.UVC.copy()   # copy previously identified baselines
+                # uvm = np.abs(self.UVC).max() # max baseline length
 
-            blength = np.sqrt(np.abs(uv_sampl[:, 0])**2 +
-                              np.abs(uv_sampl[:, 1])**2)
+                xx = uv_sampl[:, 0]/flat_to_flat*512.+512.
+                yy = uv_sampl[:, 1]/flat_to_flat*512.+512.
 
-            keep = (blength < bmax)
-            self.UVC = uv_sampl[keep]
-            self.nbuv = (self.UVC.shape)[0]
+                keep = np.array([mask[int(round(yy[ii])), int(round(xx[ii]))] for ii in range(uv_sampl.shape[0])]) > 0.5
+                self.UVC = uv_sampl[keep]
+                self.nbuv = (self.UVC.shape)[0]
 
-            print("%d baselines were preserved after filtering" % (self.nbuv,))
-            self.BMAX = bmax
-            self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+                print("%d baselines were preserved after filtering" % (self.nbuv,))
+                self.BMAX = bmax
+                self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
+            else:
+                uv_sampl = self.UVC.copy()   # copy previously identified baselines
+                # uvm = np.abs(self.UVC).max() # max baseline length
+
+                blength = np.sqrt(np.abs(uv_sampl[:, 0])**2 +
+                                  np.abs(uv_sampl[:, 1])**2)
+
+                keep = (blength < bmax)
+                self.UVC = uv_sampl[keep]
+                self.nbuv = (self.UVC.shape)[0]
+
+                print("%d baselines were preserved after filtering" % (self.nbuv,))
+                self.BMAX = bmax
+                self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         # 2. compute baseline mapping model + redundancy
         # ----------------------------------------------
@@ -345,33 +371,13 @@ class KPI(object):
             self.KPM[i, :] = (Vh)[KPhiCol[i], :]
 
         self.KPM = self.KPM.dot(np.diag(self.RED))
+        norm = np.linalg.norm(self.KPM, axis=1)
+        self.KPM = np.divide(self.KPM.T, norm).T
 
         print('first %d singular values for this array:' % (
             min(10, self.nbap-1)))
         print(np.round(S[:10], 5))
         print(self)
-
-        self._KPM_norm = norm(self.KPM, axis=1)
-        self.set_normalize_KPM(True)  # new default setting!
-
-    # =========================================================================
-    # =========================================================================
-
-    def set_normalize_KPM(self, setting=True):
-        ''' ------------------------------------------------------------------
-        Normalize the KP matrix.
-
-        Set in the hope that it'll facilitate the performance comparison of 
-        different models and/or with strictly non-redundant scenarios.
-
-        Keyword argument:
-        setting -- (default True)
-        ------------------------------------------------------------------ '''
-        if setting is True:
-            self._KPM0 = self.KPM.copy()
-            self.KPM = np.diag(1/self._KPM_norm).dot(self._KPM0)
-        else:
-            self.KPM = self._KPM0.copy()
 
     # =========================================================================
     # =========================================================================
@@ -424,6 +430,15 @@ class KPI(object):
             print('APERTURE HDU not available')
             ap_flag = False
 
+        if "PUPIL-MASK" in hdulist:
+            tmp = hdulist["PUPIL-MASK"].data
+            self.pupil_mask = np.array(tmp)
+            self.pupil_scale = hdulist["PUPIL-MASK"].header["PUPLSCAL"]
+        else:
+            self.pupil_mask = None
+            self.pupil_scale = None
+
+
         # ------------------------------------
         #    UV-PLANE is an REQUIRED HDU
         # ------------------------------------
@@ -436,6 +451,7 @@ class KPI(object):
         self.BLEN = np.hypot(self.UVC[:, 0], self.UVC[:, 1])
 
         if ap_flag:
+            # TODO: Remove commented line
             self.TFM = np.diag(1./self.RED).dot(self.BLM[:, 1:])
             # self.TFM = np.dot(np.diag(1./self.RED), self.TFM)  # redundancy
 
@@ -505,50 +521,49 @@ class KPI(object):
     # =========================================================================
     # =========================================================================
 
-    def plot_pupil_and_uv(self, xymax=None, figsize=(12, 6), plot_redun=False,
-                          cmap=cm.rainbow, ssize=12, lw=0, alpha=1.0, marker='o'):
+    def plot_pupil_and_uv(self, xymax=4.0, figsize=(12, 6), plot_redun=False,
+                          cmap=cm.gray, ssize=12, lw=0, alpha=1.0, marker='s'):
         '''Nice plot of the pupil sampling and matching uv plane.
 
-        Parameters:
+        --------------------------------------------------------------------
+        Options:
         ----------
 
-        - xymax: radius of pupil plot in meters           (default=None)
+        - xymax: radius of pupil plot in meters           (default=4.0)
         - figsize: matplotlib figure size                 (default=(12,6))
         - plot_redun: bool add the redundancy information (default=False)
-        - cmap: matplotlib colormap                       (default:cm.rainbow)
+        - cmap: matplotlib colormap                       (default:cm.gray)
         - ssize: symbol size                              (default=12)
         - lw:  line width for symbol outline              (default=0)
         - alpha: gamma (transparency)                     (default=1)
-        - maker: matplotlib marker for sub-aperture       (default='o')
+        - maker: matplotlib marker for sub-aperture       (default='s')
         - -------------------------------------------------------------------
         '''
-        if xymax is not None:
-            xym = xymax
-        else:
-            xym = np.ceil(np.max(self.VAC[:, :1]) * 2) / 2
 
         f0 = plt.figure(figsize=figsize)
         plt.clf()
         ax0 = plt.subplot(121)
 
         s1, s2 = ssize**2, (ssize/2)**2
-        ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
-                    cmap=cmap, alpha=alpha, marker=marker, lw=lw)
-        ax0.axis([-xym, xym, -xym, xym])
+        p0 = ax0.scatter(self.VAC[:, 0], self.VAC[:, 1], s=s1, c=self.VAC[:, 2],
+                         cmap=cmap, alpha=alpha, marker=marker, lw=lw)
+        ax0.axis([-xymax, xymax, -xymax, xymax])
         ax0.set_aspect('equal')
         ax0.set_xlabel("Aperture x-coordinate (meters)")
         ax0.set_ylabel("Aperture y-coordinate (meters)")
+        plt.colorbar(p0, ax=ax0)
 
         ax1 = plt.subplot(122)
-        ax1.scatter(-self.UVC[:, 0], -self.UVC[:, 1], s=s2, c=self.RED,
+        p1 = ax1.scatter(-self.UVC[:, 0], -self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
         ax1.scatter(self.UVC[:, 0], self.UVC[:, 1], s=s2, c=self.RED,
                     cmap=cmap, alpha=alpha, marker=marker, lw=lw)
 
-        ax1.axis([-2*xym, 2*xym, -2*xym, 2*xym])
+        ax1.axis([-2*xymax, 2*xymax, -2*xymax, 2*xymax])
         ax1.set_aspect('equal')
         ax1.set_xlabel("Fourier u-coordinate (meters)")
         ax1.set_ylabel("Fourier v-coordinate (meters)")
+        plt.colorbar(p1, ax=ax1)
 
         # complete previous plot with redundancy of the baseline
         # -------------------------------------------------------
@@ -593,7 +608,7 @@ class KPI(object):
         hdr['SOFTWARE'] = 'XARA'
         hdr['KPI-ID'] = self.name[:8]
         hdr['GRID'] = (False, "True for integer grid mode")
-        hdr['G-STEP'] = (0.0,   "Used for integer grid mode")
+        hdr['G-STEP'] = (0.0, "Used for integer grid mode")
         hdr.add_comment("File created by the XARA python pipeline")
         try:
             _ = self.BMAX
@@ -624,7 +639,7 @@ class KPI(object):
 
         # KER-MAT HDU
         # -----------
-        kpm_hdu = fits.ImageHDU(self.KerPhi)
+        kpm_hdu = fits.ImageHDU(self.KPM)
         kpm_hdu.header.add_comment("Kernel-phase Matrix")
         kpm_hdu.header['EXTNAME'] = 'KER-MAT'
 
@@ -634,6 +649,13 @@ class KPI(object):
         blm_hdu = fits.ImageHDU(self.BLM)
         blm_hdu.header.add_comment("Baseline Mapping Matrix")
         blm_hdu.header['EXTNAME'] = 'BLM-MAT'
+
+        # Pupil mask HDU
+        if self.pupil_mask is not None:
+            mask_hdu = fits.ImageHDU(self.pupil_mask)
+            mask_hdu.header.add_comment("Pupil mask used to create aperture model")
+            mask_hdu.header["PUPLSCAL"] = (self.pupil_scale or 0.0, "Pupil scale of the mask [m]")
+            mask_hdu.header["EXTNAME"] = "PUPIL-MASK"
 
         # compile HDU list and save
         # -------------------------
