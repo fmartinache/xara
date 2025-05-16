@@ -101,6 +101,7 @@ class KPI(object):
 
         # TODO: Would be nice if can apply bmax a-posteriori
         if fname is not None:
+            fname = str(fname)
             print("Attempting to load file %s" % (fname,))
             if '.fits' in fname:
                 try:
