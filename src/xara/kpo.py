@@ -681,7 +681,12 @@ class KPO():
         hdr['SOFTWARE'] = 'XARA'
         # TODO: Save same as calwebb stuff
         # TODO: Save wavelength info
-        hdr['PSCALE'] = self.PSCALE
+        pscale_arr = np.array(self.PSCALE)
+        if pscale_arr.size == 1:
+            pscale_for_hdr = (pscale_arr.item(), "pixel scale, see PSCALE ext")
+        else:
+            pscale_for_hdr = (None, "Multiple pixel scales, see PSCALE EXT")
+        hdr['PSCALE'] = pscale_for_hdr
         # TODO: If image is hdul, inherit its primary header info
         if img_data is not None:
             primary_hdu = fits.PrimaryHDU(img_data, header=hdr)
@@ -790,6 +795,19 @@ class KPO():
             winmask_hdu = fits.ImageHDU(winmask)
             winmask_hdu.name = "WINMASK"
             hdul += [winmask_hdu]
+
+        # PSCALE info to HDU
+        pscale_hdr = fits.Header()
+        pscale_arr = np.atleast_1d(self.PSCALE)
+        if pscale_arr.ndim != 1:
+            raise ValueError(f"Expected 1 dimension for KPO.PSCALE but got {self.PSCALE.ndim}")
+        pscale_hdr['COMMENT'] = "Pixel scale table"
+        pscale_hdu = fits.BinTableHDU.from_columns(
+            [fits.Column(name="PSCALE", format="D", array=pscale_arr)],
+            header=pscale_hdr,
+        )
+        pscale_hdu.name = 'PSCALE'
+        hdul += [pscale_hdu]
 
         hdul.writeto(fname, overwrite=overwrite)
 
