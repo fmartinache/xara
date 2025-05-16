@@ -103,7 +103,12 @@ class KPO():
             return
 
         if input_format.upper() == "LEGACY":
-            self._get_kpo_legacy(hdul)
+            try:
+                self._get_kpo_legacy(hdul)
+            except Exception as e:
+                msg = f"Extracting data from file {fname} with input format {input_format} failed with the exception below. Did you want to use input_format='KPFITS'?.\n"
+                msg += f"Underlying error: '{type(e).__name__}: {e}'"
+                raise ValueError(msg)
         elif input_format.upper() == "KPFITS":
             self._get_kpo_kpfits(hdul)
         else:
