@@ -80,6 +80,8 @@ class KPO():
         self.TARGET = []  # source names
         self.CVIS = []    # complex visibilities
         self.KPDT = []    # kernel-phase data
+        self.KPSIG = []    # kernel-phase uncertainties
+        self.KPCOV = []    # kernel-phase covariance
         self.M2PIX = -1   # used to save time in later computations
 
         self._between_pix = False  # assumption for data centering
@@ -112,10 +114,11 @@ class KPO():
         hdul.close()
 
     def _get_kpo_kpfits(self, hdul: fits.HDUList):
-        # TODO: Support KP sigma and cov
-        # TODO: Support multi-lambda (axis=1) in numpy, not sure xara does that yet?
+        # TODO: Support multi-lambda (axis=1 in numpy), not sure xara does that yet?
         # TODO: Support MJDATE
         self.KPDT.append(hdul['KP-DATA'].data[:, 0])
+        self.KPSIG.append(hdul['KP-SIGM'].data[:, 0])
+        self.KPCOV.append(hdul['KP-COV'].data[:, 0])
 
         self.PSCALE = hdul[0].header['PSCALE']
 
@@ -124,7 +127,7 @@ class KPO():
 
         self.DETPA.append(hdul['DETPA'].data)
         cvis_arr = hdul['CVIS-DATA'].data
-        # TODO: Support multi-lambda (axis=2) in numpy, not sure xara does that yet?
+        # TODO: Support multi-lambda (axis=2 in numpy), not sure xara does that yet?
         self.CVIS.append(cvis_arr[0, :, 0] + 1j * cvis_arr[1, :, 0])
 
     def _get_kpo_legacy(self, hdul: fits.HDUList):
@@ -156,6 +159,7 @@ class KPO():
         # covariance?
         # -----------
         try:
+            # TODO: Uniformize this and kpfits format
             test = hdul['KP_COV']
             self.kp_cov = test.data
             print("Covariance data available and loaded")
@@ -705,12 +709,26 @@ class KPO():
         hdul += [kpdata_hdu]
 
         # Kernel phase uncertainties
-        # TODO: Implement support for KP uncertainty
-        kpsigm_hdu = fits.ImageHDU(np.full_like(kpdt_arr, np.nan))
+        if len(self.KPSIG) == len(self.KPDT):
+            # Collapse cube/frame dim and add wavelength
+            kpsig_arr = np.concatenate(self.KPSIG)
+            kpsig_arr = np.expand_dims(kpsig_arr, axis=1)
+        else:
+            kpsig_arr = np.full_like(kpdt_arr, np.nan)
+        kpsigm_hdu = fits.ImageHDU(kpsig_arr)
         kpsigm_hdu.name = 'KP-SIGM'
-        kpsigm_hdu.header['COMMENT'] = 'KP uncertainties not yet implemented'
         hdul += [kpsigm_hdu]
 
+        # Kernel phase covariances
+        if len(self.KPCOV) == len(self.KPDT):
+            # Collapse cube/frame dim and add wavelength
+            kpcov_arr = np.concatenate(self.KPCOV)
+            kpcov_arr = np.expand_dims(kpcov_arr, axis=1)
+        else:
+            kpcov_arr = np.full_like(kpdt_arr, np.nan)
+        kpsigm_hdu = fits.ImageHDU(kpcov_arr)
+        kpsigm_hdu.name = 'KP-COV'
+        hdul += [kpsigm_hdu]
         # Central wavelength info
         # TODO: This should probably be handled by KPI or KPO object. Required for extraction
         cwavel_hdr = fits.Header()
