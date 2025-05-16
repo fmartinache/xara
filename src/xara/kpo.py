@@ -648,6 +648,15 @@ class KPO():
                 return
             self.kp_cov = np.cov(self.KPDT[0].T)
 
+    def _list_to_kpfits(self, mylist: list[np.ndarray]):
+        kpfits_arr = np.array(mylist)
+        if kpfits_arr.ndim > 2:
+            # Concatenate all extracted frames along axis 0 (Nframes, Nobservables)
+            kpfits_arr = np.concatenate(kpfits_arr)
+        # Add wavelength axis as specified in K23 paper
+        return np.expand_dims(kpfits_arr, axis=1)
+
+
     def save_as_kpfits(
         self,
         fname: Union[str, os.PathLike],
@@ -699,7 +708,8 @@ class KPO():
 
         # Kernel phase data
         # Supports only single object
-        kpdt_arr = np.concatenate(self.KPDT)
+        # TODO: Handle the extract_single_frame shape
+        # TODO: Handle mix of cubes and frame in extraction
         if len(self.KPDT) > 1:
             warnings.warn(
                 "Saving all extracted frames and cubes in a single KPFITS file"
@@ -707,8 +717,7 @@ class KPO():
                 " Use separate KPO objects if you want something else.",
                 stacklevel=2,
             )
-        # Add wavelength axis as specified in K23 paper
-        kpdt_arr = np.expand_dims(kpdt_arr, axis=1)
+        kpdt_arr = self._list_to_kpfits(self.KPDT)
         kpdata_hdu = fits.ImageHDU(kpdt_arr)
         kpdata_hdu.name = 'KP-DATA'
         hdul += [kpdata_hdu]
@@ -716,8 +725,7 @@ class KPO():
         # Kernel phase uncertainties
         if len(self.KPSIG) == len(self.KPDT):
             # Collapse cube/frame dim and add wavelength
-            kpsig_arr = np.concatenate(self.KPSIG)
-            kpsig_arr = np.expand_dims(kpsig_arr, axis=1)
+            kpsig_arr = self._list_to_kpfits(self.KPSIG)
         else:
             kpsig_arr = np.full_like(kpdt_arr, np.nan)
         kpsigm_hdu = fits.ImageHDU(kpsig_arr)
@@ -727,13 +735,14 @@ class KPO():
         # Kernel phase covariances
         if len(self.KPCOV) == len(self.KPDT):
             # Collapse cube/frame dim and add wavelength
-            kpcov_arr = np.concatenate(self.KPCOV)
-            kpcov_arr = np.expand_dims(kpcov_arr, axis=1)
+            kpcov_arr = self._list_to_kpfits(self.KPCOV)
         else:
             kpcov_arr = np.full_like(kpdt_arr, np.nan)
         kpsigm_hdu = fits.ImageHDU(kpcov_arr)
         kpsigm_hdu.name = 'KP-COV'
         hdul += [kpsigm_hdu]
+
+
         # Central wavelength info
         # TODO: This should probably be handled by KPI or KPO object. Required for extraction
         cwavel_hdr = fits.Header()
@@ -760,12 +769,9 @@ class KPO():
         hdul += [detpa_hdu]
 
         # Complex visibility data
-        # Concatenate all extracted frames along axis 0 (Nf, Nbl)
-        cvis_arr = np.concatenate(self.CVIS)
-        # Split real and imag along axis 0 (2, Nframes, Nbl)
+        cvis_arr = self._list_to_kpfits(self.CVIS)
+        # Split real and imag along axis 0 (2, Nf, 1, Nbl)
         cvis_arr = np.stack([cvis_arr.real, cvis_arr.imag], axis=0)
-        # Add wavelength dimension (2, Nf, 1, Nbl)
-        cvis_arr = np.expand_dims(cvis_arr, axis=2)
         cvis_data_hdu = fits.ImageHDU(cvis_arr)
         cvis_data_hdu.name = 'CVIS-DATA'
         hdul += [cvis_data_hdu]
